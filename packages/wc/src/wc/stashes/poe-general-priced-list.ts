@@ -17,7 +17,7 @@ export class PoeGeneralPricedListElement extends LitElement {
   @property({ type: Object }) tab!: TabWithItems;
   @property() league: string = 'Standard';
   @property({ type: Object }) prices: Map<string, number> = new Map();
-  @property() sortBy: 'name' | 'tab' | 'qty' | 'price' | 'total' = 'name';
+  @property() sortBy: 'name' | 'stash' | 'tab' | 'qty' | 'price' | 'total' = 'name';
   @property() sortDir: 'asc' | 'desc' = 'asc';
   @property({ attribute: false }) stashLoader!: IStashLoader;
   @property() errorMessage: string | null = null;
@@ -71,6 +71,12 @@ export class PoeGeneralPricedListElement extends LitElement {
     if (map.has('league') || this.prices.size === 0) {
       await this.loadPrices();
     }
+    if (map.has('tab')) {
+      const n = String(this.tab?.name || '');
+      const id = String(this.tab?.id || '');
+      const isAggregated = id === 'aggregated-view' || n.startsWith('Aggregated');
+      this.aggregate = isAggregated;
+    }
   }
 
   protected async firstUpdated(): Promise<void> {
@@ -114,11 +120,15 @@ export class PoeGeneralPricedListElement extends LitElement {
     const items = this.tab?.items ?? [];
     const tabIndex = this.tab?.index ?? 0;
     const groups = groupByName(items);
+    const stashName = this.aggregate ? '' : (this.tab?.name || (this.tab ? `Tab #${tabIndex}` : ''));
     const rows = Array.from(groups.values()).map(g => {
       const price = this.prices.get(g.name) ?? 0;
       const total = +(price * g.total).toFixed(1);
-      return { name: g.name, qty: g.total, tab: tabIndex, price, total, sample: g.sample };
+      return { name: g.name, stash: stashName, qty: g.total, tab: tabIndex, price, total, sample: g.sample };
     });
+    if (this.aggregate && rows.length === 0) {
+      return html``;
+    }
     let regex: RegExp | null = null;
     this.invalidRegex = false;
     if (this.filter && this.filter.trim().length) {
@@ -134,6 +144,7 @@ export class PoeGeneralPricedListElement extends LitElement {
       const mul = this.sortDir === 'asc' ? 1 : -1;
       switch (this.sortBy) {
         case 'name': return a.name.localeCompare(b.name) * mul;
+        case 'stash': return (a.stash ?? '').localeCompare(b.stash ?? '') * mul;
         case 'tab': return (a.tab - b.tab) * mul;
         case 'qty': return (a.qty - b.qty) * mul;
         case 'price': return (a.price - b.price) * mul;
@@ -141,13 +152,13 @@ export class PoeGeneralPricedListElement extends LitElement {
       }
     });
 
-    const headerCols = this.aggregate ? ['Name', 'Quantity', 'Price', 'Total'] : ['Name', 'Tab', 'Quantity', 'Price', 'Total'];
+    const headerCols = this.aggregate ? ['Name', 'Quantity', 'Price', 'Total'] : ['Name', 'Stash', 'Tab', 'Quantity', 'Price', 'Total'];
     const filteredTotal = filtered.reduce((sum, r) => sum + (r.total || 0), 0);
     return html`<div class="list">
       <div class="tools">
         <sl-input size="small" placeholder="Filter (regex)" .value=${this.filter} @sl-input=${(e: any) => { this.filter = e.target.value; }}></sl-input>
-        ${this.aggregate ? html`<sl-button size="small" id="filtersBtn" @click=${() => { this.filtersOpen = !this.filtersOpen; }}>Filters</sl-button>` : null}
-        ${this.aggregate ? html`<div class="filtered-total">Filtered total: ${filteredTotal.toFixed(0)}c</div>` : null}
+      ${this.aggregate ? html`<sl-button size="small" id="filtersBtn" @click=${() => { this.filtersOpen = !this.filtersOpen; }}>Filters</sl-button>` : null}
+      ${this.aggregate ? html`<div class="filtered-total">Filtered total: ${filteredTotal.toFixed(0)}c</div>` : null}
         <sl-button size="small" @click=${() => { this.viewPricesOpen = true; }}>View Prices JSON</sl-button>
       </div>
       ${this.aggregate ? html`<sl-popup .active=${this.filtersOpen} anchor="filtersBtn" placement="bottom-end" distance="8">
@@ -190,6 +201,7 @@ export class PoeGeneralPricedListElement extends LitElement {
           <poe-item .item=${normalizeItem(r.sample)}></poe-item>
           <span>${r.name}</span>
         </div>
+        ${this.aggregate ? null : html`<div class="stash">${r.stash ?? ''}</div>`}
         ${this.aggregate ? null : html`<div class="tab">${r.tab}</div>`}
         <div class="qty">${r.qty}</div>
         <div class="price">${r.price ? `${r.price.toFixed(0)}c` : '-'}</div>
@@ -204,7 +216,7 @@ export class PoeGeneralPricedListElement extends LitElement {
 
   private renderHeader(cols: string[]): TemplateResult {
     const keys: Record<string, PoeGeneralPricedListElement['sortBy']> = {
-      Name: 'name', Tab: 'tab', Quantity: 'qty', Price: 'price', Total: 'total'
+      Name: 'name', Stash: 'stash', Tab: 'tab', Quantity: 'qty', Price: 'price', Total: 'total'
     };
     const numeric = new Set(['Quantity', 'Price', 'Total']);
     return html`<div class="header ${this.aggregate ? 'agg' : ''}">
@@ -229,7 +241,7 @@ export class PoeGeneralPricedListElement extends LitElement {
     .tools sl-input { min-width: 260px; }
     .filtered-total { font-weight: 600; opacity: 0.8; }
     sl-alert { position: sticky; top: 0; z-index: 1; }
-    .header, .row { display: grid; grid-template-columns: 1fr 60px 80px 80px 100px; align-items: center; column-gap: 12px; }
+    .header, .row { display: grid; grid-template-columns: 1fr 160px 60px 80px 80px 100px; align-items: center; column-gap: 12px; }
     .header.agg, .row.agg { grid-template-columns: 1fr 80px 80px 100px; }
     .header { font-weight: 600; position: sticky; top: 0; background: var(--sl-color-gray-50); z-index: 2; padding: 6px 0; border-bottom: 1px solid var(--sl-color-gray-200); }
     .header .th { text-align: left; background: transparent; border: none; color: inherit; cursor: pointer; padding: 4px 0; }

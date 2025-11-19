@@ -476,67 +476,75 @@ const handleDropZoneDrop = (event: DragEvent) => {
 </template>
 
 <style scoped>
-.import-actions {
+:global(body) {
+    background-color: var(--sl-color-neutral-50);
+    color: var(--sl-color-neutral-900);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+.drop-zone {
+	min-height: 100vh;
+	position: relative;
+	padding: 2rem;
+    max-width: 1600px;
+    margin: 0 auto;
 	display: flex;
-	gap: 1rem;
-	align-items: center;
+	flex-direction: column;
+	gap: 1.5rem;
+}
+
+.drop-zone--active {
+    border: 2px dashed var(--sl-color-primary-500);
+    background-color: var(--sl-color-primary-50);
+    border-radius: 1rem;
 }
 
 .drop-overlay-message {
 	position: absolute;
-	top: 0;
-	left: 0;
-	right: 0;
-	bottom: 0;
+	inset: 0;
 	display: flex;
 	justify-content: center;
 	align-items: center;
-	z-index: 10; /* Ensure it's above other content but below popups/modals */
-	pointer-events: none; /* Allows drag events to pass through to the drop-zone itself */
+	z-index: 50;
+	pointer-events: none;
+    backdrop-filter: blur(4px);
+    background: rgba(255, 255, 255, 0.5);
 }
 
 .toolbar {
-    display: grid;
-    grid-template-columns: 1fr auto;
+    display: flex;
+    justify-content: space-between;
     align-items: center;
-    gap: 0.8rem;
-    padding-left: 5rem;
+    padding: 1rem 1.5rem;
+    background: var(--sl-color-neutral-0);
+    border-radius: 1rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    border: 1px solid var(--sl-color-neutral-200);
+    flex-wrap: wrap;
+    gap: 1rem;
 }
+
 .toolbar__left,
 .toolbar__right {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.6rem;
+    gap: 0.75rem;
     align-items: center;
 }
+
 .spreadsheet-id-input {
-    min-width: 360px;
-    flex: 1 1 360px;
+    width: 300px;
 }
 
 .v-enter-active,
 .v-leave-active {
-	transition: opacity 0.5s ease;
+	transition: opacity 0.3s ease, transform 0.3s ease;
 }
 
 .v-enter-from,
 .v-leave-to {
 	opacity: 0;
-}
-
-.drop-zone {
-	height: 100vh;
-	position: relative;
-	padding: 1rem;
-	min-width: 800px;
-
-	display: flex;
-	flex-direction: column;
-	gap: 0.8rem;
-}
-.drop-zone--active {
-	background-color: red;
-	background-color: var(--sl-color-cyan-400);
+    transform: translateY(-10px);
 }
 
 .general-tabs {
@@ -544,22 +552,27 @@ const handleDropZoneDrop = (event: DragEvent) => {
 }
 
 .samples {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 2rem;
+	display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+	gap: 1.5rem;
 }
 
 .sample-buttons {
-	margin-top: 0.4rem;
+	margin-top: 1rem;
 	display: flex;
-	gap: 0.2rem;
+	gap: 0.5rem;
 }
 
 .version {
 	position: fixed;
-	bottom: 0;
-	right: 0;
-	padding: 0.3rem;
-	padding-right: 1rem;
+	bottom: 1rem;
+	right: 1rem;
+    background: var(--sl-color-neutral-0);
+    padding: 0.25rem 0.75rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    border: 1px solid var(--sl-color-neutral-200);
+    z-index: 100;
 }
 </style>

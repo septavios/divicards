@@ -9,14 +9,15 @@ declare global {
 }
 
 export type Events = [
-	typeof CloseEvent,
-	typeof SampleFromStashtabEvent,
-	typeof StashtabFetchedEvent,
-	typeof ExtractCardsEvent,
-	typeof SelectedTabsChangeEvent,
-	typeof StashtabsBadgesFetchedEvent,
-	typeof TabClickEvent,
-	typeof BulkLoadAllTabsEvent
+    typeof CloseEvent,
+    typeof SampleFromStashtabEvent,
+    typeof StashtabFetchedEvent,
+    typeof ExtractCardsEvent,
+    typeof SelectedTabsChangeEvent,
+    typeof StashtabsBadgesFetchedEvent,
+    typeof TabClickEvent,
+    typeof BulkLoadAllTabsEvent,
+    typeof ForceReloadSelectedEvent
 ];
 
 export class CloseEvent extends Event {
@@ -77,5 +78,13 @@ export class BulkLoadAllTabsEvent extends Event {
 
     constructor(options?: EventInit) {
         super(BulkLoadAllTabsEvent.tag, options);
+    }
+}
+
+export class ForceReloadSelectedEvent extends Event {
+    static readonly tag = 'stashes__force-reload-selected';
+
+    constructor(options?: EventInit) {
+        super(ForceReloadSelectedEvent.tag, options);
     }
 }

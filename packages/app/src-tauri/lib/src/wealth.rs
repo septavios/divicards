@@ -168,8 +168,6 @@ pub async fn wealth_snapshot(
         "INSERT INTO snapshots (timestamp, league, total_chaos, total_divines, json) VALUES (?1, ?2, ?3, ?4, ?5)",
         params![snapshot.timestamp, format!("{}", snapshot.league), snapshot.total_chaos, snapshot.total_divines, json],
     )?;
-
-    crate::event::Event::Toast { variant: crate::event::ToastVariant::Success, message: "Snapshot captured".to_string() }.emit(&window);
     Ok(snapshot)
 }
 
@@ -275,8 +273,6 @@ pub async fn wealth_snapshot_cached(
         "INSERT INTO snapshots (timestamp, league, total_chaos, total_divines, json) VALUES (?1, ?2, ?3, ?4, ?5)",
         params![snapshot.timestamp, format!("{}", snapshot.league), snapshot.total_chaos, snapshot.total_divines, json],
     )?;
-
-    crate::event::Event::Toast { variant: crate::event::ToastVariant::Success, message: "Snapshot captured".to_string() }.emit(&window);
     Ok(snapshot)
 }
 

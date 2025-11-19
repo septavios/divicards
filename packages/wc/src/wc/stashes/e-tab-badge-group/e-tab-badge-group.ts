@@ -12,7 +12,7 @@ import { classMap } from 'lit/directives/class-map.js';
 import { NoItemsTab } from 'poe-custom-elements/types.js';
 import { PageChangeEvent } from '../../events/change/page.js';
 import { PerPageChangeEvent } from '../../events/change/per_page.js';
-import { SelectedTabsChangeEvent } from '../events.js';
+import { SelectedTabsChangeEvent, ForceReloadSelectedEvent } from '../events.js';
 import { MultiselectChangeEvent } from './events.js';
 import { styles } from './e-tab-badge-group.styles.js';
 import { TabSelectEvent } from '../e-tab-badge/events.js';
@@ -83,9 +83,8 @@ export class TabBadgeGroupElement extends LitElement {
 	protected override render(): TemplateResult {
 		return html`</div>
 			<div class="tab-badge-group">
-				${
-					this.shouldFilter
-						? html`<header class="header">
+				${this.shouldFilter
+				? html`<header class="header">
 								<div class="header__left">
 									<sl-input
 										size="small"
@@ -104,6 +103,15 @@ export class TabBadgeGroupElement extends LitElement {
 									></e-pagination>
 								</div>
 								<div class="header__right">
+                                ${this.multiselect ? html`
+                                        <sl-button-group>
+                                            <sl-button size="small" @click=${this.#selectAll}>Select All</sl-button>
+                                            <sl-button size="small" @click=${this.#deselectAll}>Deselect All</sl-button>
+                                            <sl-button size="small" @click=${this.#forceReloadSelected}>
+                                                Force reload selected
+                                            </sl-button>
+                                        </sl-button-group>
+                                    ` : nothing}
 									<sl-dropdown>
 										<sl-button slot="trigger" caret size="small">Options</sl-button>
 										<sl-menu @sl-select=${this.#handle_menu_item_select}>
@@ -118,7 +126,7 @@ export class TabBadgeGroupElement extends LitElement {
 												>
 											</sl-menu-item>
 											${this.withHideRemoveOnly
-												? html`
+						? html`
 														<sl-menu-item
 															value="hideRemoveOnly"
 															type="checkbox"
@@ -126,20 +134,20 @@ export class TabBadgeGroupElement extends LitElement {
 															>Hide remove-only</sl-menu-item
 														>
 												  `
-												: nothing}
+						: nothing}
 										</sl-menu>
 									</sl-dropdown>
 								</div>
 						  </header>`
-						: nothing
-				}
+				: nothing
+			}
 				<ul class="list">
 					${this.paginated.map(tab => {
-						return html`<li
+				return html`<li
 							class=${classMap({
-								error: this.errors.some(({ noItemsTab }) => noItemsTab.id === tab.id),
-								'hovered-error': this.hoveredErrorTabId === tab.id,
-							})}
+					error: this.errors.some(({ noItemsTab }) => noItemsTab.id === tab.id),
+					'hovered-error': this.hoveredErrorTabId === tab.id,
+				})}
 						>
 							<e-tab-badge
 								.as=${this.multiselect ? 'checkbox' : 'button'}
@@ -148,7 +156,7 @@ export class TabBadgeGroupElement extends LitElement {
 								.disabled=${this.badgesDisabled}
 							></e-tab-badge>
 						</li>`;
-					})}
+			})}
 				</ul>
 			</div>`;
 	}
@@ -190,6 +198,27 @@ export class TabBadgeGroupElement extends LitElement {
 	increasePage(): void {
 		this.page++;
 	}
+
+	#selectAll() {
+		const newSelected = new Map(this.selected_tabs);
+		// Select all filtered tabs (or all stashes if no filter?)
+		// Usually "Select All" implies all visible or all available. 
+		// Let's select all available stashes to be safe/comprehensive for bulk operations.
+		for (const t of this.stashes) {
+			newSelected.set(t.id, { id: t.id, name: t.name });
+		}
+		this.selected_tabs = newSelected;
+		this.dispatchEvent(new SelectedTabsChangeEvent(this.selected_tabs));
+	}
+
+    #deselectAll() {
+        this.selected_tabs = new Map();
+        this.dispatchEvent(new SelectedTabsChangeEvent(this.selected_tabs));
+    }
+
+    #forceReloadSelected() {
+        this.dispatchEvent(new ForceReloadSelectedEvent());
+    }
 }
 
 function filter(

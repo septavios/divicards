@@ -2,20 +2,28 @@ import { css, CSSResult } from 'lit';
 
 export const styles: CSSResult = css`
 	:host {
-		display: inline-block;
+		display: block;
+        margin-bottom: 1rem;
 	}
 	.tab-badge-group {
-		display: grid;
-		gap: 1rem;
+		display: flex;
+        flex-direction: column;
+		gap: 1.5rem;
+        background: var(--sl-color-neutral-0);
+        border: 1px solid var(--sl-color-neutral-200);
+        border-radius: 1rem;
+        padding: 1.5rem;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 	}
 
 	.header {
-		padding-inline: 2rem;
 		display: flex;
 		flex-wrap: wrap;
 		justify-content: space-between;
 		align-items: center;
-		gap: 2rem;
+		gap: 1.5rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid var(--sl-color-neutral-100);
 
 		& .header__left {
 			display: flex;
@@ -25,8 +33,7 @@ export const styles: CSSResult = css`
 			flex-grow: 1;
 
 			& sl-input {
-				width: 15ch;
-				margin-top: 18px;
+				width: 200px;
 			}
 		}
 
@@ -38,23 +45,38 @@ export const styles: CSSResult = css`
 	}
 
 	.tabs-total__count {
-		color: var(--sl-color-amber-800);
+		color: var(--sl-color-primary-600);
+        font-weight: 700;
+        background: var(--sl-color-primary-50);
+        padding: 0.1rem 0.5rem;
+        border-radius: 99px;
+        font-size: 0.9em;
 	}
 
-		.list {
-			display: flex;
-			flex-wrap: wrap;
-			list-style: none;
-			gap: 0.5rem;
-			margin-inline: 1rem;
-		}
+    .list {
+        display: flex;
+        flex-wrap: wrap;
+        list-style: none;
+        gap: 0.75rem;
+        margin: 0;
+        padding: 0;
+    }
 
 	li {
-		border: 1px solid transparent;
-		border-radius: 4px;
+		display: contents; /* Let children participate in flex layout */
 	}
 
 	.hovered-error {
-		border-color: red;
+        /* Handled by child badge usually, but if wrapper needs it: */
+        position: relative;
 	}
+    
+    .hovered-error::after {
+        content: '';
+        position: absolute;
+        inset: -4px;
+        border: 2px solid var(--sl-color-danger-500);
+        border-radius: 0.5rem;
+        pointer-events: none;
+    }
 `;

@@ -98,9 +98,13 @@ export class StashesViewElement extends LitElement {
 	@state() cardsJustExtracted = false;
 	@state() showWealth = false;
 	@state() hoveredSnapshot: { x: number; y: number; snapshot: any; index: number } | null = null;
+	@state() bulkProgress: { loaded: number; total: number; name: string } | null = null;
 
 	private stashTabTask = new Task(this, {
 		task: async ([tab, selectedTabs]: [NoItemsTab | null, SelectedStashtabs]) => {
+			if (this.multiselect && selectedTabs && selectedTabs.size === 0) {
+				return null;
+			}
 			// Aggregation Mode
 			if (this.multiselect && selectedTabs && selectedTabs.size > 0) {
 				const selectedIds = Array.from(selectedTabs.keys());
@@ -195,6 +199,10 @@ export class StashesViewElement extends LitElement {
 			e.stopPropagation();
 			await this.#bulkLoadAllTabs();
 		});
+		this.addEventListener('stashes__force-reload-selected', e => {
+			e.stopPropagation();
+			this.#onLoadItemsClicked();
+		});
 	}
 
 	@query('button#stashes-btn') stashesButton!: HTMLButtonElement;
@@ -225,18 +233,7 @@ export class StashesViewElement extends LitElement {
                                 <div>
                                     ${this.fetchingStashTab
 						? html`<sl-button><sl-spinner></sl-spinner></sl-button>`
-						: this.multiselect
-							? html`<sl-button
-                                                id="get-data-btn"
-                                                class="btn-load-items"
-                                                .disabled=${this.selected_tabs.size === 0 ||
-								this.fetchingStashTab ||
-								this.stashLoadsAvailable === 0}
-                                                @click=${this.#onLoadItemsClicked}
-                                          >
-                                                Force reload selected
-                                          </sl-button>`
-							: null}
+						: nothing}
                                 </div>
                           `
 				: html`<div>
@@ -294,7 +291,17 @@ export class StashesViewElement extends LitElement {
                 </div>
 			</header>
 			<div class="messages">
-				<p class="msg">${this.msg}</p>
+				${this.bulkProgress ? html`
+					<div class="bulk-progress">
+						<div class="bulk-row">
+							<sl-spinner></sl-spinner>
+							<span class="bulk-text">Loading ${this.bulkProgress.name} (${this.bulkProgress.loaded}/${this.bulkProgress.total})...</span>
+						</div>
+						<div class="bulk-bar">
+							<div class="bulk-fill" style="width: ${Math.max(0, Math.min(100, Math.round((this.bulkProgress.loaded / Math.max(1, this.bulkProgress.total)) * 100)))}%"></div>
+						</div>
+					</div>
+				` : html`<p class="msg">${this.msg}</p>`}
 				<p class="msg">${this.noStashesMessage}</p>
 				${this.errors.length
 				? html`<e-stash-tab-errors
@@ -308,9 +315,9 @@ export class StashesViewElement extends LitElement {
             <section class="wealth-history">
                 <div class="wealth-summary">
                     ${(() => {
-                    const latest = this.snapshots[0];
-                    const prev = this.snapshots[1];
-                    const chaos = Math.round(latest.total_chaos);
+					const latest = this.snapshots[0];
+					const prev = this.snapshots[1];
+					const chaos = Math.round(latest.total_chaos);
 
 					const chaosDiff = prev ? Math.round(latest.total_chaos - prev.total_chaos) : 0;
 					const chaosTrend = chaosDiff > 0 ? 'trend-up' : chaosDiff < 0 ? 'trend-down' : 'trend-neutral';
@@ -462,7 +469,7 @@ export class StashesViewElement extends LitElement {
 								.tab=${tab}
 							></e-stash-tab-container>`,
 					initial: () => {
-						return html`initial`;
+						return nothing;
 					},
 					error: (err: unknown) => {
 						if (
@@ -550,6 +557,9 @@ export class StashesViewElement extends LitElement {
 	#handle_selected_tabs_change(e: SelectedTabsChangeEvent): void {
 		this.selected_tabs = new Map(e.$selected_tabs);
 		this.dispatchEvent(new SelectedTabsChangeEvent(this.selected_tabs));
+		if (this.multiselect && this.selected_tabs.size === 0) {
+			this.opened_tab = null;
+		}
 	}
 	#handle_tab_badge_click(e: TabClickEvent): void {
 		const clicked = e.$tab;
@@ -610,7 +620,7 @@ export class StashesViewElement extends LitElement {
 		try {
 			for (const { id, name: stashtab_name } of tabsToLoad) {
 				loadedCount++;
-				this.msg = `Loading ${stashtab_name} (${loadedCount}/${totalToLoad})...`;
+				this.bulkProgress = { loaded: loadedCount, total: totalToLoad, name: stashtab_name };
 
 				try {
 					switch (this.downloadAs) {
@@ -647,6 +657,7 @@ export class StashesViewElement extends LitElement {
 		} finally {
 			this.fetchingStashTab = false;
 			this.msg = '';
+			this.bulkProgress = null;
 		}
 	}
 
@@ -1015,17 +1026,11 @@ export class StashesViewElement extends LitElement {
 			const barMaxW = w - 120; // Reserve space for text
 			const barW = Math.max(2, (e.value / max) * barMaxW);
 
-			// Bar background
 			ctx.fillStyle = 'rgba(0,0,0,0.03)';
-			ctx.beginPath();
-			ctx.roundRect(100, y, barMaxW, rowH - 12, 4);
-			ctx.fill();
+			ctx.fillRect(100, y, barMaxW, rowH - 12);
 
-			// Bar fill
 			ctx.fillStyle = colors[i % colors.length];
-			ctx.beginPath();
-			ctx.roundRect(100, y, barW, rowH - 12, 4);
-			ctx.fill();
+			ctx.fillRect(100, y, barW, rowH - 12);
 
 			// Label
 			ctx.fillStyle = getComputedStyle(this).getPropertyValue('--sl-color-neutral-700') || '#374151';
