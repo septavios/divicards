@@ -100,7 +100,35 @@ export class StashesViewElement extends LitElement {
 	@state() hoveredSnapshot: { x: number; y: number; snapshot: any; index: number } | null = null;
 
 	private stashTabTask = new Task(this, {
-		task: async ([tab]) => {
+		task: async ([tab, selectedTabs]: [NoItemsTab | null, SelectedStashtabs]) => {
+			// Aggregation Mode
+			if (this.multiselect && selectedTabs && selectedTabs.size > 0) {
+				const selectedIds = Array.from(selectedTabs.keys());
+				const items: TabWithItems['items'] = [];
+
+				// Collect items from cache
+				for (const id of selectedIds) {
+					const cached = this.tabsCache.get(id);
+					if (cached && cached.items) {
+						items.push(...cached.items);
+					}
+				}
+
+				// Create a synthetic tab for aggregation
+				// We use 'QuadStash' type to trigger the generic priced list view which handles most item types well
+				const aggregatedTab: TabWithItems = {
+					id: 'aggregated-view',
+					name: `Aggregated (${selectedIds.length} tabs)`,
+					type: 'QuadStash',
+					index: 0,
+					items: items,
+					metadata: {
+						colour: 'ffffff'
+					}
+				};
+				return aggregatedTab;
+			}
+
 			if (!tab) {
 				return null;
 			}
@@ -153,7 +181,7 @@ export class StashesViewElement extends LitElement {
 			}
 			return loaded;
 		},
-		args: () => [this.opened_tab],
+		args: () => [this.opened_tab, this.selected_tabs] as [NoItemsTab | null, SelectedStashtabs],
 	});
 
 	constructor() {
@@ -280,34 +308,58 @@ export class StashesViewElement extends LitElement {
             <section class="wealth-history">
                 <div class="wealth-summary">
                     ${(() => {
-					const latest = this.snapshots[0];
-					const prev = this.snapshots[1];
-					const chaos = Math.round(latest.total_chaos);
-					const div = latest.total_divines != null ? latest.total_divines.toFixed(2) : '-';
+                    const latest = this.snapshots[0];
+                    const prev = this.snapshots[1];
+                    const chaos = Math.round(latest.total_chaos);
 
 					const chaosDiff = prev ? Math.round(latest.total_chaos - prev.total_chaos) : 0;
 					const chaosTrend = chaosDiff > 0 ? 'trend-up' : chaosDiff < 0 ? 'trend-down' : 'trend-neutral';
 					const chaosSign = chaosDiff > 0 ? '+' : '';
+					const trendIcon = chaosDiff > 0 ? 'arrow-up-short' : chaosDiff < 0 ? 'arrow-down-short' : 'dash';
 
 					return html`
                             <div class="summary-card">
                                 <div class="summary-label"><sl-icon name="currency-bitcoin"></sl-icon> Total Chaos</div>
                                 <div class="summary-value">${chaos.toLocaleString()}</div>
                                 <div class="summary-sub ${chaosTrend}">
+                                    <sl-icon name="${trendIcon}"></sl-icon>
                                     ${prev ? html`${chaosSign}${chaosDiff.toLocaleString()} vs last` : 'First snapshot'}
                                 </div>
                             </div>
-                            <div class="summary-card">
-                                <div class="summary-label"><sl-icon name="gem"></sl-icon> Total Divines</div>
-                                <div class="summary-value">${div}</div>
-                                <div class="summary-sub trend-neutral">
-                                    Estimated
-                                </div>
-                            </div>
-                            <div class="summary-card">
-                                <div class="summary-label"><sl-icon name="camera"></sl-icon> Snapshots</div>
-                                <div class="summary-value">${this.snapshots.length}</div>
-                                <div class="summary-sub trend-neutral">
+                            			<div class="wealth-summary">
+                ${this.#renderSnapshotStats()}
+				<div class="summary-card">
+					<div class="summary-label">
+						<sl-icon name="piggy-bank"></sl-icon>
+						Total Wealth
+					</div>
+					<div class="summary-value">
+						${this.snapshots.length > 0
+							? formatChaosAmount(this.snapshots[0].total_chaos)
+							: '0c'}
+						<span class="summary-sub">
+                            ${this.#renderTrendIcon(this.snapshots)}
+                            ${this.snapshots.length > 1
+							? this.#calculateChange(
+								this.snapshots[0].total_chaos,
+								this.snapshots[1].total_chaos
+							)
+							: '0%'}
+                        </span>
+					</div>
+				</div>
+				<div class="summary-card">
+					<div class="summary-label">
+						<sl-icon name="clock-history"></sl-icon>
+						Snapshots
+					</div>
+					<div class="summary-value">
+						${this.snapshots.length}
+						<span class="summary-sub">Recorded</span>
+					</div>
+				</div>
+			</div>                                <div class="summary-sub trend-neutral">
+                                    <sl-icon name="clock"></sl-icon>
                                     ${new Date(latest.timestamp * 1000).toLocaleDateString()}
                                 </div>
                             </div>
@@ -315,7 +367,7 @@ export class StashesViewElement extends LitElement {
 				})()}
                 </div>
                 <div class="charts">
-                    <div class="chart-container" style="position: relative;">
+                    <div class="chart-container">
                         <canvas 
                             id="wealth-line"
                             @mousemove=${this.#onChartMouseMove}
@@ -391,7 +443,7 @@ export class StashesViewElement extends LitElement {
 				@change:selected_tabs=${this.#handle_selected_tabs_change}
 				.badgesDisabled=${this.stashLoadsAvailable === 0}
 			></e-tab-badge-group>
-			${this.opened_tab
+			${this.opened_tab || (this.multiselect && this.selected_tabs.size > 0)
 				? this.stashTabTask.render({
 					pending: () => {
 						return html`<e-stash-tab-container
@@ -468,22 +520,31 @@ export class StashesViewElement extends LitElement {
 		this.showWealth = !this.showWealth;
 	}
 
+	@state() bulkLoading = false;
+
 	async #bulkLoadAllTabs(): Promise<void> {
 		if (!this.stashtabs_badges.length) {
 			await this.#loadStash();
 		}
-		this.multiselect = true;
-		const next: SelectedStashtabs = new Map();
-		for (const t of this.stashtabs_badges) {
-			next.set(t.id, { id: t.id, name: t.name });
+		if (this.bulkLoading) return;
+		this.bulkLoading = true;
+
+		try {
+			this.multiselect = true;
+			const next: SelectedStashtabs = new Map();
+			for (const t of this.stashtabs_badges) {
+				next.set(t.id, { id: t.id, name: t.name });
+			}
+			this.selected_tabs = next;
+			this.dispatchEvent(new SelectedTabsChangeEvent(this.selected_tabs));
+			const prev = this.downloadAs;
+			this.downloadAs = 'general-tab';
+			await this.#load_selected_tabs(this.league);
+			this.downloadAs = prev;
+			await this.#captureSnapshot();
+		} finally {
+			this.bulkLoading = false;
 		}
-		this.selected_tabs = next;
-		this.dispatchEvent(new SelectedTabsChangeEvent(this.selected_tabs));
-		const prev = this.downloadAs;
-		this.downloadAs = 'general-tab';
-		await this.#load_selected_tabs(this.league);
-		this.downloadAs = prev;
-		await this.#captureSnapshot();
 	}
 
 	#handle_selected_tabs_change(e: SelectedTabsChangeEvent): void {
@@ -541,9 +602,16 @@ export class StashesViewElement extends LitElement {
 
 	/** For each selected stashtab badge, load stashtab and emit it */
 	async #load_selected_tabs(league: League, force = false): Promise<void> {
-		while (this.selected_tabs.size > 0) {
-			for (const { id, name: stashtab_name } of this.selected_tabs.values()) {
-				this.fetchingStashTab = true;
+		const tabsToLoad = Array.from(this.selected_tabs.values());
+		let loadedCount = 0;
+		const totalToLoad = tabsToLoad.length;
+
+		this.fetchingStashTab = true;
+		try {
+			for (const { id, name: stashtab_name } of tabsToLoad) {
+				loadedCount++;
+				this.msg = `Loading ${stashtab_name} (${loadedCount}/${totalToLoad})...`;
+
 				try {
 					switch (this.downloadAs) {
 						case 'divination-cards-sample': {
@@ -574,13 +642,11 @@ export class StashesViewElement extends LitElement {
 							},
 						];
 					}
-				} finally {
-					this.selected_tabs.delete(id);
-					this.selected_tabs = new Map(this.selected_tabs);
-					this.fetchingStashTab = false;
-					this.msg = '';
 				}
 			}
+		} finally {
+			this.fetchingStashTab = false;
+			this.msg = '';
 		}
 	}
 
@@ -647,6 +713,89 @@ export class StashesViewElement extends LitElement {
 			this.msg = this.#errorMessage(err);
 			toast('danger', this.msg);
 		}
+	}
+
+	#renderSnapshotStats() {
+		if (this.snapshots.length < 2) return nothing;
+
+		const current = this.snapshots[0];
+		const previous = this.snapshots[1];
+
+		const start = new Date(previous.timestamp * 1000);
+		const end = new Date(current.timestamp * 1000);
+		const durationMs = end.getTime() - start.getTime();
+		const durationHrs = durationMs / (1000 * 60 * 60);
+
+		const revenue = current.total_chaos;
+		const cost = previous.total_chaos;
+		const net = revenue - cost;
+		const rate = durationHrs > 0 ? net / durationHrs : 0;
+
+		const formatTime = (d: Date) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+		const formatDuration = (ms: number) => {
+			const h = Math.floor(ms / (1000 * 60 * 60));
+			const m = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
+			return `${h}h ${m}m`;
+		};
+
+		return html`
+            <div class="stats-card">
+                <div class="stats-header">
+                    <div class="stats-title">Snapshot Statistics</div>
+                    <div class="stats-rate ${rate >= 0 ? 'positive' : 'negative'}">
+                        ${rate >= 0 ? '+' : ''}${Math.round(rate)}c/hr
+                    </div>
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-col">
+                        <div class="stat-row">
+                            <span class="stat-label">Start</span>
+                            <span class="stat-val">${formatTime(start)}</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">End</span>
+                            <span class="stat-val">${formatTime(end)}</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Duration</span>
+                            <span class="stat-val">${formatDuration(durationMs)}</span>
+                        </div>
+                    </div>
+                    <div class="stat-col">
+                        <div class="stat-row">
+                            <span class="stat-label">Revenue</span>
+                            <span class="stat-val">${formatChaosAmount(revenue)}</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Cost</span>
+                            <span class="stat-val">${formatChaosAmount(cost)}</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Net</span>
+                            <span class="stat-val ${net >= 0 ? 'positive' : 'negative'}">
+                                ${net >= 0 ? '+' : ''}${formatChaosAmount(net)}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+	}
+
+	#renderTrendIcon(snapshots: any[]) {
+		if (snapshots.length < 2) return html`<sl-icon name="dash" class="trend-neutral"></sl-icon>`;
+		const current = snapshots[0].total_chaos;
+		const previous = snapshots[1].total_chaos;
+		if (current > previous) return html`<sl-icon name="arrow-up-short" class="trend-up"></sl-icon>`;
+		if (current < previous) return html`<sl-icon name="arrow-down-short" class="trend-down"></sl-icon>`;
+		return html`<sl-icon name="dash" class="trend-neutral"></sl-icon>`;
+	}
+
+	#calculateChange(current: number, previous: number): string {
+		const diff = current - previous;
+		const percentage = previous !== 0 ? (diff / previous) * 100 : 0;
+		// const sign = diff >= 0 ? '+' : '';
+		return `${percentage.toFixed(1)}%`;
 	}
 
 	#errorMessage(err: unknown): string {
@@ -942,7 +1091,12 @@ declare global {
 		'e-stashes-view': StashesViewElement;
 	}
 }
-
+function formatChaosAmount(amount: number): string {
+	if (amount >= 1000) {
+		return `${(amount / 1000).toFixed(1)}k`;
+	}
+	return `${Math.round(amount)}c`;
+}
 declare module 'vue' {
 	interface GlobalComponents {
 		'e-stashes-view': DefineComponent<StashesViewProps & VueEventHandlers<Events>>;
