@@ -40,27 +40,27 @@ const SECS_300 = 300 * 1000;
 
 type ToastVariant = 'info' | 'success' | 'neutral' | 'warning' | 'danger';
 const toast = (variant: ToastVariant, message: string) => {
-    const iconVariantRecord: Record<ToastVariant, string> = {
-        info: 'info-circle',
-        success: 'check2-circle',
-        neutral: 'gear',
-        warning: 'exclamation-triangle',
-        danger: 'exclamation-octagon',
-    };
-    const iconName = iconVariantRecord[variant];
-    const duration = variant === 'warning' || variant === 'danger' ? undefined : 5000;
-    const variantProp = variant === 'info' ? 'primary' : variant;
-    const alert = Object.assign(document.createElement('sl-alert'), {
-        closable: true,
-        duration,
-        variant: variantProp,
-    } as any);
-    const icon = Object.assign(document.createElement('sl-icon'), {
-        name: iconName,
-        slot: 'icon',
-    } as any);
-    alert.append(icon, message);
-    (alert as any).toast();
+	const iconVariantRecord: Record<ToastVariant, string> = {
+		info: 'info-circle',
+		success: 'check2-circle',
+		neutral: 'gear',
+		warning: 'exclamation-triangle',
+		danger: 'exclamation-octagon',
+	};
+	const iconName = iconVariantRecord[variant];
+	const duration = variant === 'warning' || variant === 'danger' ? undefined : 5000;
+	const variantProp = variant === 'info' ? 'primary' : variant;
+	const alert = Object.assign(document.createElement('sl-alert'), {
+		closable: true,
+		duration,
+		variant: variantProp,
+	} as any);
+	const icon = Object.assign(document.createElement('sl-icon'), {
+		name: iconName,
+		slot: 'icon',
+	} as any);
+	alert.append(icon, message);
+	(alert as any).toast();
 };
 
 export interface StashesViewProps {
@@ -97,6 +97,8 @@ export class StashesViewElement extends LitElement {
 	/** Indicator whether cards was just extracted. */
 	@state() cardsJustExtracted = false;
 	@state() showWealth = false;
+	@state() hoveredSnapshot: { x: number; y: number; snapshot: any; index: number } | null = null;
+
 	private stashTabTask = new Task(this, {
 		task: async ([tab]) => {
 			if (!tab) {
@@ -111,152 +113,155 @@ export class StashesViewElement extends LitElement {
 			if (tab.type === 'MapStash') {
 				const parentId = tab.parent ?? tab.id;
 				let children = this.stashtabs_badges.filter(t => t.parent === parentId);
-                if (children.length > 0) {
-                    const items: TabWithItems['items'] = [];
-                    for (const child of children) {
-                        const childTab = await this.stashLoader.tabFromBadge(child, this.league);
-                        items.push(...childTab.items);
-                    }
-                    return { ...tab, items, children } as TabWithItems;
-                }
+				if (children.length > 0) {
+					const items: TabWithItems['items'] = [];
+					for (const child of children) {
+						const childTab = await this.stashLoader.tabFromBadge(child, this.league);
+						items.push(...childTab.items);
+					}
+					return { ...tab, items, children } as TabWithItems;
+				}
 				// fallback to existing child array if present
-                if (Array.isArray(tab.children) && tab.children.length > 0) {
-                    const items: TabWithItems['items'] = [];
-                    for (const child of tab.children) {
-                        const childTab = await this.stashLoader.tabFromBadge(child, this.league);
-                        items.push(...childTab.items);
-                    }
-                    return { ...tab, items, children: tab.children } as TabWithItems;
-                }
+				if (Array.isArray(tab.children) && tab.children.length > 0) {
+					const items: TabWithItems['items'] = [];
+					for (const child of tab.children) {
+						const childTab = await this.stashLoader.tabFromBadge(child, this.league);
+						items.push(...childTab.items);
+					}
+					return { ...tab, items, children: tab.children } as TabWithItems;
+				}
 				// re-fetch badges to discover children and try again
 				try {
 					const badges = await this.stashLoader.tabs(this.league);
 					this.stashtabs_badges = badges;
 					children = badges.filter(t => t.parent === parentId);
-                    if (children.length > 0) {
-                        const items: TabWithItems['items'] = [];
-                        for (const child of children) {
-                            const childTab = await this.stashLoader.tabFromBadge(child, this.league);
-                            items.push(...childTab.items);
-                        }
-                        return { ...tab, items, children } as TabWithItems;
-                    }
+					if (children.length > 0) {
+						const items: TabWithItems['items'] = [];
+						for (const child of children) {
+							const childTab = await this.stashLoader.tabFromBadge(child, this.league);
+							items.push(...childTab.items);
+						}
+						return { ...tab, items, children } as TabWithItems;
+					}
 				} catch {
 					// ignore and fallthrough
 				}
 			}
-	            const loaded = await this.#loadSingleTabContent('general-tab', tab.id, this.league, (_id, _league) => this.stashLoader.tabFromBadge(this.opened_tab!, this.league), false);
-	            if (loaded && typeof (loaded as any)?.id === 'string') {
-	                this.tabsCache.set((loaded as any).id, loaded as any);
-	            }
-	            return loaded;
+			const loaded = await this.#loadSingleTabContent('general-tab', tab.id, this.league, (_id, _league) => this.stashLoader.tabFromBadge(this.opened_tab!, this.league), false);
+			if (loaded && typeof (loaded as any)?.id === 'string') {
+				this.tabsCache.set((loaded as any).id, loaded as any);
+			}
+			return loaded;
 		},
 		args: () => [this.opened_tab],
 	});
 
-    constructor() {
-        super();
+	constructor() {
+		super();
 
 		this.addEventListener('stashes__tab-click', e => {
 			this.#handle_tab_badge_click(e);
 			e.stopPropagation();
 		});
-        this.addEventListener('stashes__bulk-load-all', async e => {
-            e.stopPropagation();
-            await this.#bulkLoadAllTabs();
-        });
-    }
+		this.addEventListener('stashes__bulk-load-all', async e => {
+			e.stopPropagation();
+			await this.#bulkLoadAllTabs();
+		});
+	}
 
 	@query('button#stashes-btn') stashesButton!: HTMLButtonElement;
 	@query('button#get-data-btn') getDataButton!: HTMLButtonElement;
 
-    protected willUpdate(map: PropertyValues<this>): void {
-        if (map.has('league')) {
-            this.stashtabs_badges = [];
-            this.msg = '';
-            this.selected_tabs = new Map();
-            this.errors = [];
-        }
-    }
+	protected willUpdate(map: PropertyValues<this>): void {
+		if (map.has('league')) {
+			this.stashtabs_badges = [];
+			this.msg = '';
+			this.selected_tabs = new Map();
+			this.errors = [];
+		}
+	}
 
-    protected async firstUpdated(): Promise<void> {
-        if (!this.fetchingStash) {
-            await this.#loadStash();
-        }
-    }
+	protected async firstUpdated(): Promise<void> {
+		this.#loadSnapshots();
+		if (!this.fetchingStash) {
+			await this.#loadStash();
+		}
+	}
 
 	protected override render(): TemplateResult {
 		return html`<div class="main-stashes-component">
 			<header class="header">
-                ${this.stashtabs_badges.length
-                    ? html`
-                            <div>
-                                ${this.fetchingStashTab
-                                    ? html`<sl-button><sl-spinner></sl-spinner></sl-button>`
-                                    : this.multiselect
-                                    ? html`<sl-button
-                                            id="get-data-btn"
-                                            class="btn-load-items"
-                                            .disabled=${this.selected_tabs.size === 0 ||
-                                            this.fetchingStashTab ||
-                                            this.stashLoadsAvailable === 0}
-                                            @click=${this.#onLoadItemsClicked}
-                                      >
-                                            Force reload selected
-                                      </sl-button>`
-                                    : null}
-                            </div>
-                      `
-                    : html`<div>
-                            ${this.fetchingStash
-                                ? html`<sl-button size="small"><sl-spinner></sl-spinner></sl-button>`
-                                : nothing}
-                      </div> `}
-                <div class="top-right-corner">
+                <div class="header-left">
                     ${this.stashtabs_badges.length
-                        ? html`
-                                ${this.multiselect && this.opened_tab && (this.opened_tab.type === 'DivinationCardStash')
-                                    ? html`<sl-radio-group
-                                            @sl-change=${this.#onDownloadAsChanged}
-                                            .helpText=${`Download as`}
-                                            value=${this.downloadAs}
-                                      >
-                                            ${DOWNLOAD_AS_VARIANTS.map(
-                                                variant =>
-                                                    html`<sl-radio-button size="small" value=${variant}
-                                                        >${variant === 'divination-cards-sample'
-                                                            ? 'cards'
-                                                            : 'poe tab'}</sl-radio-button
-                                                    >`
-                                            )}
-                                      </sl-radio-group>`
-                                    : null}
-                                <div class="tips">
-                                    <e-help-tip>
-                                        <p>PoE API allows 30 requests in 5 minutes</p>
-                                    </e-help-tip>
-                                    <div class="loads-available">
-                                        Loads available:<span class="loads-available__value"
-                                            >${this.stashLoadsAvailable}</span
-                                        >
-                                    </div>
-                                    <sl-button size="small" variant="primary" @click=${this.#captureSnapshot}>Capture Snapshot</sl-button>
-                                    <sl-button size="small" @click=${this.#loadSnapshots}>Refresh Snapshots</sl-button>
-                                    ${this.snapshots.length ? html`<sl-button size="small" @click=${this.#toggleWealth}>${this.showWealth ? 'Hide' : 'Wealth History'}</sl-button>` : nothing}
-                                    ${this.snapshots.length
-                                        ? html`<sl-details summary="Snapshots">
-                                                <div>
-                                                    ${this.snapshots.slice(0, 10).map(s => html`<div>
-                                                        <span>${new Date(s.timestamp * 1000).toLocaleString()}</span>
-                                                        <span> • Chaos: ${Math.round(s.total_chaos)}</span>
-                                                        ${s.total_divines != null ? html`<span> • Div: ${s.total_divines.toFixed(2)}</span>` : nothing}
-                                                    </div>`)}
-                                                </div>
-                                            </sl-details>`
-                                        : nothing}
+				? html`
+                                <div>
+                                    ${this.fetchingStashTab
+						? html`<sl-button><sl-spinner></sl-spinner></sl-button>`
+						: this.multiselect
+							? html`<sl-button
+                                                id="get-data-btn"
+                                                class="btn-load-items"
+                                                .disabled=${this.selected_tabs.size === 0 ||
+								this.fetchingStashTab ||
+								this.stashLoadsAvailable === 0}
+                                                @click=${this.#onLoadItemsClicked}
+                                          >
+                                                Force reload selected
+                                          </sl-button>`
+							: null}
                                 </div>
                           `
-                        : nothing}
+				: html`<div>
+                                ${this.fetchingStash
+						? html`<sl-button size="small"><sl-spinner></sl-spinner></sl-button>`
+						: nothing}
+                          </div> `}
+                </div>
+                
+                <div class="header-right">
+                    <div class="snapshot-controls">
+                         <div class="loads-available">
+                            Loads: <span class="loads-available__value">${this.stashLoadsAvailable}</span>
+                        </div>
+                        <e-help-tip>
+                            <p>PoE API allows 30 requests in 5 minutes</p>
+                        </e-help-tip>
+                        <sl-button-group>
+                            <sl-button 
+                                size="small" 
+                                @click=${this.#captureSnapshot} 
+                                title="Refresh Snapshot"
+                                .loading=${this.capturingSnapshot}
+                                .disabled=${this.capturingSnapshot}
+                            >
+                                <sl-icon name="arrow-clockwise" slot="prefix"></sl-icon>
+                                Refresh
+                            </sl-button>
+                            ${this.snapshots.length ? html`
+                                <sl-button size="small" @click=${this.#toggleWealth} ?variant=${this.showWealth ? 'default' : 'neutral'}>
+                                    ${this.showWealth ? 'Hide History' : 'Show History'}
+                                </sl-button>
+                            ` : nothing}
+                        </sl-button-group>
+                    </div>
+
+                    ${this.stashtabs_badges.length && this.multiselect && this.opened_tab && (this.opened_tab.type === 'DivinationCardStash')
+				? html`<sl-radio-group
+                                @sl-change=${this.#onDownloadAsChanged}
+                                .helpText=${`Download as`}
+                                value=${this.downloadAs}
+                          >
+                                ${DOWNLOAD_AS_VARIANTS.map(
+					variant =>
+						html`<sl-radio-button size="small" value=${variant}
+                                            >${variant === 'divination-cards-sample'
+								? 'cards'
+								: 'poe tab'}</sl-radio-button
+                                        >`
+				)}
+                          </sl-radio-group>`
+				: null}
+                    
                     <sl-button size="small" @click=${this.#onCloseClicked} class="btn-close">Close</sl-button>
                 </div>
 			</header>
@@ -264,41 +269,115 @@ export class StashesViewElement extends LitElement {
 				<p class="msg">${this.msg}</p>
 				<p class="msg">${this.noStashesMessage}</p>
 				${this.errors.length
-					? html`<e-stash-tab-errors
+				? html`<e-stash-tab-errors
 							@upd:hoveredErrorTabId=${this.#handleUpdHoveredError}
 							@upd:errors=${this.#handleUpdErrors}
 							.errors=${this.errors}
 					  ></e-stash-tab-errors>`
-					: nothing}
+				: nothing}
 			</div>
             ${this.showWealth && this.snapshots.length ? html`
             <section class="wealth-history">
                 <div class="wealth-summary">
                     ${(() => {
-                        const latest = this.snapshots[0];
-                        const chaos = Math.round(latest.total_chaos);
-                        const div = latest.total_divines != null ? latest.total_divines.toFixed(2) : '';
-                        return html`<div class="summary-item">Total Chaos: <strong>${chaos}</strong></div>
-                        ${div ? html`<div class="summary-item">Total Divines: <strong>${div}</strong></div>` : nothing}
-                        <div class="summary-item">Snapshots: <strong>${this.snapshots.length}</strong></div>`;
-                    })()}
+					const latest = this.snapshots[0];
+					const prev = this.snapshots[1];
+					const chaos = Math.round(latest.total_chaos);
+					const div = latest.total_divines != null ? latest.total_divines.toFixed(2) : '-';
+
+					const chaosDiff = prev ? Math.round(latest.total_chaos - prev.total_chaos) : 0;
+					const chaosTrend = chaosDiff > 0 ? 'trend-up' : chaosDiff < 0 ? 'trend-down' : 'trend-neutral';
+					const chaosSign = chaosDiff > 0 ? '+' : '';
+
+					return html`
+                            <div class="summary-card">
+                                <div class="summary-label"><sl-icon name="currency-bitcoin"></sl-icon> Total Chaos</div>
+                                <div class="summary-value">${chaos.toLocaleString()}</div>
+                                <div class="summary-sub ${chaosTrend}">
+                                    ${prev ? html`${chaosSign}${chaosDiff.toLocaleString()} vs last` : 'First snapshot'}
+                                </div>
+                            </div>
+                            <div class="summary-card">
+                                <div class="summary-label"><sl-icon name="gem"></sl-icon> Total Divines</div>
+                                <div class="summary-value">${div}</div>
+                                <div class="summary-sub trend-neutral">
+                                    Estimated
+                                </div>
+                            </div>
+                            <div class="summary-card">
+                                <div class="summary-label"><sl-icon name="camera"></sl-icon> Snapshots</div>
+                                <div class="summary-value">${this.snapshots.length}</div>
+                                <div class="summary-sub trend-neutral">
+                                    ${new Date(latest.timestamp * 1000).toLocaleDateString()}
+                                </div>
+                            </div>
+                        `;
+				})()}
                 </div>
                 <div class="charts">
-                    <canvas id="wealth-line"></canvas>
-                    <canvas id="wealth-bars"></canvas>
+                    <div class="chart-container" style="position: relative;">
+                        <canvas 
+                            id="wealth-line"
+                            @mousemove=${this.#onChartMouseMove}
+                            @mouseleave=${this.#onChartMouseLeave}
+                        ></canvas>
+                        ${this.hoveredSnapshot ? html`
+                            <div 
+                                class="chart-tooltip"
+                                style="left: ${this.hoveredSnapshot.x}px; top: ${this.hoveredSnapshot.y - 10}px; transform: translate(-50%, -100%);"
+                            >
+                                <div class="tooltip-date">${new Date(this.hoveredSnapshot.snapshot.timestamp * 1000).toLocaleString()}</div>
+                                <div class="tooltip-row">
+                                    <span class="tooltip-label">Chaos:</span>
+                                    <span class="tooltip-val">${Math.round(this.hoveredSnapshot.snapshot.total_chaos).toLocaleString()}</span>
+                                </div>
+                                ${this.hoveredSnapshot.snapshot.total_divines ? html`
+                                <div class="tooltip-row">
+                                    <span class="tooltip-label">Divines:</span>
+                                    <span class="tooltip-val">${this.hoveredSnapshot.snapshot.total_divines.toFixed(2)}</span>
+                                </div>` : nothing}
+                            </div>
+                        ` : nothing}
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="wealth-bars"></canvas>
+                    </div>
                 </div>
                 <div class="category-list">
                     ${(() => {
-                        const latest = this.snapshots[0];
-                        const total = latest.total_chaos || 1;
-                        const entries = Object.entries(latest.by_category || {}).map(([k, v]) => ({ name: k, chaos: v.chaos || 0 }));
-                        entries.sort((a, b) => b.chaos - a.chaos);
-                        return html`${entries.map(e => html`<div class="category-row">
-                            <span class="category-name">${e.name}</span>
-                            <span class="category-val">${Math.round(e.chaos)}</span>
-                            <span class="category-pct">${((e.chaos / total) * 100).toFixed(1)}%</span>
-                        </div>`)}`;
-                    })()}
+					const latest = this.snapshots[0];
+					const total = latest.total_chaos || 1;
+					const entries = Object.entries(latest.by_category || {}).map(([k, v]) => ({ name: k, chaos: v.chaos || 0 }));
+					entries.sort((a, b) => b.chaos - a.chaos);
+
+					const getIcon = (name: string) => {
+						if (name.includes('currency')) return 'coin';
+						if (name.includes('card')) return 'postcard';
+						if (name.includes('essence')) return 'droplet';
+						if (name.includes('fragment')) return 'puzzle';
+						if (name.includes('map')) return 'map';
+						return 'box';
+					};
+
+					return html`${entries.map(e => {
+						const pct = (e.chaos / total) * 100;
+						return html`
+                            <div class="category-card">
+                                <div class="category-icon">
+                                    <sl-icon name="${getIcon(e.name)}"></sl-icon>
+                                </div>
+                                <div class="category-details">
+                                    <div class="category-header">
+                                        <span class="cat-name">${e.name}</span>
+                                        <span class="cat-val">${Math.round(e.chaos).toLocaleString()} <small class="category-pct">(${pct.toFixed(1)}%)</small></span>
+                                    </div>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: ${pct}%"></div>
+                                    </div>
+                                </div>
+                            </div>`;
+					})}`;
+				})()}
                 </div>
             </section>` : nothing}
 			<e-tab-badge-group
@@ -314,14 +393,14 @@ export class StashesViewElement extends LitElement {
 			></e-tab-badge-group>
 			${this.opened_tab
 				? this.stashTabTask.render({
-						pending: () => {
-							return html`<e-stash-tab-container
+					pending: () => {
+						return html`<e-stash-tab-container
 								status="pending"
 								@e-stash-tab-container__close=${this.#handleTabContainerClose}
 							></e-stash-tab-container>`;
-						},
-						complete: tab =>
-							html`<e-stash-tab-container
+					},
+					complete: tab =>
+						html`<e-stash-tab-container
 								.cardsJustExtracted=${this.cardsJustExtracted}
 								@e-stash-tab-container__close=${this.#handleTabContainerClose}
 								@e-stash-tab-container__extract-cards=${this.#emitExtractCards}
@@ -330,23 +409,23 @@ export class StashesViewElement extends LitElement {
 								.stashLoader=${this.stashLoader}
 								.tab=${tab}
 							></e-stash-tab-container>`,
-						initial: () => {
-							return html`initial`;
-						},
-						error: (err: unknown) => {
-							if (
-								!(
-									typeof err === 'object' &&
-									err !== null &&
-									'message' in err &&
-									typeof err.message === 'string'
-								)
-							) {
-								return;
-							}
-							return html`<div>${err.message}</div>`;
-						},
-				  })
+					initial: () => {
+						return html`initial`;
+					},
+					error: (err: unknown) => {
+						if (
+							!(
+								typeof err === 'object' &&
+								err !== null &&
+								'message' in err &&
+								typeof err.message === 'string'
+							)
+						) {
+							return;
+						}
+						return html`<div>${err.message}</div>`;
+					},
+				})
 				: null}
 		</div>`;
 	}
@@ -354,6 +433,18 @@ export class StashesViewElement extends LitElement {
 	protected override updated(map: PropertyValues<this>): void {
 		if (map.has('snapshots') || map.has('showWealth')) {
 			this.#renderHistoryCharts();
+		}
+		// Re-render chart when hover state changes to draw/clear crosshair
+		if (map.has('hoveredSnapshot')) {
+			const line = this.renderRoot?.querySelector<HTMLCanvasElement>('#wealth-line');
+			if (line) {
+				const values = this.snapshots.map(s => s.total_chaos || 0);
+				// Pass the index of the hovered snapshot if it exists
+				const hoveredIndex = this.hoveredSnapshot ? this.snapshots.indexOf(this.hoveredSnapshot.snapshot) : -1;
+				// We need to reverse index because drawLine reverses values
+				const drawIndex = hoveredIndex !== -1 ? this.snapshots.length - 1 - hoveredIndex : -1;
+				this.#drawLine(line, values, drawIndex);
+			}
 		}
 	}
 
@@ -377,22 +468,23 @@ export class StashesViewElement extends LitElement {
 		this.showWealth = !this.showWealth;
 	}
 
-    async #bulkLoadAllTabs(): Promise<void> {
-        if (!this.stashtabs_badges.length) {
-            await this.#loadStash();
-        }
-        this.multiselect = true;
-        const next: SelectedStashtabs = new Map();
-        for (const t of this.stashtabs_badges) {
-            next.set(t.id, { id: t.id, name: t.name });
-        }
-        this.selected_tabs = next;
-        this.dispatchEvent(new SelectedTabsChangeEvent(this.selected_tabs));
-        const prev = this.downloadAs;
-        this.downloadAs = 'general-tab';
-        await this.#load_selected_tabs(this.league);
-        this.downloadAs = prev;
-    }
+	async #bulkLoadAllTabs(): Promise<void> {
+		if (!this.stashtabs_badges.length) {
+			await this.#loadStash();
+		}
+		this.multiselect = true;
+		const next: SelectedStashtabs = new Map();
+		for (const t of this.stashtabs_badges) {
+			next.set(t.id, { id: t.id, name: t.name });
+		}
+		this.selected_tabs = next;
+		this.dispatchEvent(new SelectedTabsChangeEvent(this.selected_tabs));
+		const prev = this.downloadAs;
+		this.downloadAs = 'general-tab';
+		await this.#load_selected_tabs(this.league);
+		this.downloadAs = prev;
+		await this.#captureSnapshot();
+	}
 
 	#handle_selected_tabs_change(e: SelectedTabsChangeEvent): void {
 		this.selected_tabs = new Map(e.$selected_tabs);
@@ -492,10 +584,13 @@ export class StashesViewElement extends LitElement {
 		}
 	}
 
+	@state() capturingSnapshot = false;
+
 	async #captureSnapshot(): Promise<void> {
-		if (!this.stashLoader) {
+		if (!this.stashLoader || this.capturingSnapshot) {
 			return;
 		}
+		this.capturingSnapshot = true;
 		this.msg = 'Capturing snapshot...';
 		const selected = this.selected_tabs.size
 			? Array.from(this.selected_tabs.values()).map(v => v.id)
@@ -505,51 +600,54 @@ export class StashesViewElement extends LitElement {
 			.filter((t): t is TabWithItems => !!t);
 		const allCached = cachedTabs.length === selected.length;
 		// legacy refs shape no longer used; we capture from cache exclusively
-        try {
-            if (!allCached) {
-                for (const id of selected) {
-                    if (this.tabsCache.has(id)) continue;
-                    const badge = this.stashtabs_badges.find(t => t.id === id)!;
-                    const loaded = await this.#loadSingleTabContent('general-tab', id, this.league, (_sid, _lg) => this.stashLoader.tabFromBadge(badge, this.league), true);
-                    if (loaded) this.tabsCache.set(loaded.id, loaded);
-                }
-            }
-            const finalTabs: Array<TabWithItems> = selected
-                .map(id => this.tabsCache.get(id))
-                .filter((t): t is TabWithItems => !!t);
-            await (this.stashLoader as any).wealthSnapshotCached(this.league, finalTabs);
-            this.msg = 'Snapshot captured';
-            toast('success', 'Snapshot captured');
-            await this.#loadSnapshots();
-        } catch (err) {
-            const msg = this.#errorMessage(err);
-            this.msg = msg;
-            toast('danger', msg);
-            const secs = this.#parseRetryAfterSeconds(msg);
-            if (secs && secs > 0) {
-                setTimeout(() => {
-                    this.#captureSnapshot();
-                }, (secs + 1) * 1000);
-            }
-        }
-    }
+		try {
+			if (!allCached) {
+				for (const id of selected) {
+					if (this.tabsCache.has(id)) continue;
+					const badge = this.stashtabs_badges.find(t => t.id === id)!;
+					const loaded = await this.#loadSingleTabContent('general-tab', id, this.league, (_sid, _lg) => this.stashLoader.tabFromBadge(badge, this.league), true);
+					if (loaded) this.tabsCache.set(loaded.id, loaded);
+				}
+			}
+			const finalTabs: Array<TabWithItems> = selected
+				.map(id => this.tabsCache.get(id))
+				.filter((t): t is TabWithItems => !!t);
+			await (this.stashLoader as any).wealthSnapshotCached(this.league, finalTabs);
+			this.msg = 'Snapshot captured';
+			toast('success', 'Snapshot captured');
+			await this.#loadSnapshots();
+		} catch (err) {
+			const msg = this.#errorMessage(err);
+			this.msg = msg;
+			toast('danger', msg);
+			const secs = this.#parseRetryAfterSeconds(msg);
+			if (secs && secs > 0) {
+				setTimeout(() => {
+					this.#captureSnapshot();
+				}, (secs + 1) * 1000);
+			}
+		} finally {
+			this.capturingSnapshot = false;
+		}
+	}
 
 	async #loadSnapshots(): Promise<void> {
 		if (!this.stashLoader) return;
 		this.msg = 'Refreshing snapshots...';
-        try {
-            const rows = await (this.stashLoader as any).listSnapshots(this.league, 20);
-            const sorted = Array.isArray(rows) ? [...rows].sort((a, b) => b.timestamp - a.timestamp) : [];
-            this.snapshots = sorted;
-            if (this.snapshots.length) {
-                this.showWealth = true;
-            }
-            toast('success', 'Snapshots refreshed');
-        } catch (err) {
-            this.msg = this.#errorMessage(err);
-            toast('danger', this.msg);
-        }
-    }
+		try {
+			const rows = await (this.stashLoader as any).listSnapshots(this.league, 20);
+			const sorted = Array.isArray(rows) ? [...rows].sort((a, b) => b.timestamp - a.timestamp) : [];
+			this.snapshots = sorted;
+			if (this.snapshots.length) {
+				this.showWealth = true;
+			}
+			this.msg = '';
+			// toast('success', 'Snapshots refreshed'); // redundant
+		} catch (err) {
+			this.msg = this.#errorMessage(err);
+			toast('danger', this.msg);
+		}
+	}
 
 	#errorMessage(err: unknown): string {
 		if (err && typeof err === 'object') {
@@ -585,66 +683,212 @@ export class StashesViewElement extends LitElement {
 		}
 	}
 
-	#drawLine(canvas: HTMLCanvasElement, values: number[]): void {
+	#drawLine(canvas: HTMLCanvasElement, values: number[], activeIndex: number = -1): void {
 		const dpr = window.devicePixelRatio || 1;
-		const w = canvas.clientWidth || 600;
-		const h = 220;
+		const rect = canvas.getBoundingClientRect();
+		const w = rect.width;
+		const h = 300; // Fixed height for better visibility
+
 		canvas.width = Math.floor(w * dpr);
 		canvas.height = Math.floor(h * dpr);
-		canvas.style.width = `${w}px`;
-		canvas.style.height = `${h}px`;
+
 		const ctx = canvas.getContext('2d');
 		if (!ctx) return;
-		ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+		ctx.scale(dpr, dpr);
 		ctx.clearRect(0, 0, w, h);
+
+		if (values.length === 0) return;
+
 		const max = Math.max(...values);
 		const min = Math.min(...values);
-		const pad = (max - min) * 0.1;
-		const yMax = max + pad;
-		const yMin = Math.max(0, min - pad);
+		const range = max - min || 1;
+		// Add 10% padding top and bottom
+		const yMax = max + (range * 0.1);
+		const yMin = Math.max(0, min - (range * 0.1));
+		const yRange = yMax - yMin;
+
 		const n = values.length;
-		const xStep = n > 1 ? w / (n - 1) : w;
+		const xStep = w / Math.max(1, n - 1);
+
+		// Gradient fill
+		const gradient = ctx.createLinearGradient(0, 0, 0, h);
+		gradient.addColorStop(0, 'rgba(99, 102, 241, 0.2)'); // Primary color low opacity
+		gradient.addColorStop(1, 'rgba(99, 102, 241, 0)');
+
+		ctx.beginPath();
+		// Start from bottom left
+		ctx.moveTo(0, h);
+		for (let i = 0; i < n; i++) {
+			const x = i * xStep;
+			const v = values[n - 1 - i]; // Reverse to show oldest to newest left-to-right
+			const y = h - ((v - yMin) / yRange) * h;
+			if (i === 0) ctx.lineTo(x, y); // First point
+			else ctx.lineTo(x, y);
+		}
+		// Close path for fill
+		ctx.lineTo((n - 1) * xStep, h);
+		ctx.closePath();
+		ctx.fillStyle = gradient;
+		ctx.fill();
+
+		// Stroke line
 		ctx.strokeStyle = getComputedStyle(this).getPropertyValue('--sl-color-primary-600') || '#4f46e5';
-		ctx.lineWidth = 2;
+		ctx.lineWidth = 3;
+		ctx.lineCap = 'round';
+		ctx.lineJoin = 'round';
 		ctx.beginPath();
 		for (let i = 0; i < n; i++) {
 			const x = i * xStep;
-			const v = values[i];
-			const y = h - ((v - yMin) / (yMax - yMin)) * (h - 20);
+			const v = values[n - 1 - i];
+			const y = h - ((v - yMin) / yRange) * h;
 			if (i === 0) ctx.moveTo(x, y);
 			else ctx.lineTo(x, y);
 		}
 		ctx.stroke();
-		const last = values[n - 1] || 0;
-		ctx.fillStyle = getComputedStyle(this).getPropertyValue('--sl-color-neutral-700') || '#374151';
-		ctx.font = '12px system-ui';
-		ctx.fillText(`${Math.round(last)}`, w - 60, 16);
+
+		// Draw points
+		ctx.fillStyle = '#fff';
+		for (let i = 0; i < n; i++) {
+			const x = i * xStep;
+			const v = values[n - 1 - i];
+			const y = h - ((v - yMin) / yRange) * h;
+
+			ctx.beginPath();
+			ctx.arc(x, y, 4, 0, Math.PI * 2);
+			ctx.fill();
+			ctx.stroke();
+
+			// Draw active point highlight
+			if (i === activeIndex) {
+				ctx.save();
+				ctx.strokeStyle = 'rgba(99, 102, 241, 0.5)';
+				ctx.lineWidth = 10;
+				ctx.beginPath();
+				ctx.arc(x, y, 8, 0, Math.PI * 2);
+				ctx.stroke();
+				ctx.restore();
+
+				// Draw crosshair line
+				ctx.save();
+				ctx.strokeStyle = getComputedStyle(this).getPropertyValue('--sl-color-neutral-400') || '#9ca3af';
+				ctx.lineWidth = 1;
+				ctx.setLineDash([5, 5]);
+				ctx.beginPath();
+				ctx.moveTo(x, 0);
+				ctx.lineTo(x, h);
+				ctx.stroke();
+				ctx.restore();
+			}
+		}
+	}
+
+	#onChartMouseMove(e: MouseEvent) {
+		const canvas = e.target as HTMLCanvasElement;
+		const rect = canvas.getBoundingClientRect();
+		const x = e.clientX - rect.left;
+		const w = rect.width;
+		const n = this.snapshots.length;
+
+		if (n === 0) return;
+
+		const xStep = w / Math.max(1, n - 1);
+		// Find nearest index. Note: chart draws oldest to newest (reversed array)
+		// so index 0 on chart is snapshots[n-1]
+		let index = Math.round(x / xStep);
+		index = Math.max(0, Math.min(n - 1, index));
+
+		// Map back to snapshots array index
+		const snapshotIndex = n - 1 - index;
+		const snapshot = this.snapshots[snapshotIndex];
+
+		// Calculate Y position for tooltip
+		const values = this.snapshots.map(s => s.total_chaos || 0);
+		const max = Math.max(...values);
+		const min = Math.min(...values);
+		const range = max - min || 1;
+		const yMax = max + (range * 0.1);
+		const yMin = Math.max(0, min - (range * 0.1));
+		const yRange = yMax - yMin;
+
+		const val = snapshot.total_chaos || 0;
+		const y = 300 - ((val - yMin) / yRange) * 300; // 300 is fixed height
+
+		this.hoveredSnapshot = {
+			x: index * xStep,
+			y: y,
+			index: index,
+			snapshot
+		};
+	}
+
+	#onChartMouseLeave() {
+		this.hoveredSnapshot = null;
 	}
 
 	#drawBars(canvas: HTMLCanvasElement, entries: Array<{ name: string; value: number }>): void {
 		const dpr = window.devicePixelRatio || 1;
-		const w = canvas.clientWidth || 600;
-		const h = 260;
+		const rect = canvas.getBoundingClientRect();
+		const w = rect.width;
+		const h = 300; // Match line chart height
+
 		canvas.width = Math.floor(w * dpr);
 		canvas.height = Math.floor(h * dpr);
 		canvas.style.width = `${w}px`;
 		canvas.style.height = `${h}px`;
+
 		const ctx = canvas.getContext('2d');
 		if (!ctx) return;
-		ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+		ctx.scale(dpr, dpr);
 		ctx.clearRect(0, 0, w, h);
+
+		if (entries.length === 0) return;
+
 		const max = Math.max(1, ...entries.map(e => e.value));
-		const rowH = Math.min(30, h / Math.max(1, entries.length));
+		const rowH = Math.min(40, h / entries.length);
+
+		// Colors for bars
+		const colors = [
+			'#6366f1', // Indigo
+			'#8b5cf6', // Violet
+			'#ec4899', // Pink
+			'#f43f5e', // Rose
+			'#f97316', // Orange
+			'#eab308', // Yellow
+			'#22c55e', // Green
+			'#06b6d4', // Cyan
+			'#3b82f6', // Blue
+			'#64748b', // Slate
+		];
+
 		for (let i = 0; i < entries.length; i++) {
 			const e = entries[i];
-			const y = i * rowH + 4;
-			const barW = ((e.value / max) * (w - 160));
-			ctx.fillStyle = getComputedStyle(this).getPropertyValue('--sl-color-primary-500') || '#6366f1';
-			ctx.fillRect(140, y, barW, rowH - 8);
+			const y = i * rowH + 8;
+			const barMaxW = w - 120; // Reserve space for text
+			const barW = Math.max(2, (e.value / max) * barMaxW);
+
+			// Bar background
+			ctx.fillStyle = 'rgba(0,0,0,0.03)';
+			ctx.beginPath();
+			ctx.roundRect(100, y, barMaxW, rowH - 12, 4);
+			ctx.fill();
+
+			// Bar fill
+			ctx.fillStyle = colors[i % colors.length];
+			ctx.beginPath();
+			ctx.roundRect(100, y, barW, rowH - 12, 4);
+			ctx.fill();
+
+			// Label
 			ctx.fillStyle = getComputedStyle(this).getPropertyValue('--sl-color-neutral-700') || '#374151';
-			ctx.font = '12px system-ui';
-			ctx.fillText(e.name, 8, y + rowH / 2);
-			ctx.fillText(`${Math.round(e.value)}`, 110, y + rowH / 2);
+			ctx.font = '600 13px system-ui';
+			ctx.textAlign = 'right';
+			ctx.textBaseline = 'middle';
+			ctx.fillText(e.name, 90, y + (rowH - 12) / 2);
+
+			// Value
+			ctx.textAlign = 'left';
+			ctx.font = '13px system-ui';
+			ctx.fillText(`${Math.round(e.value).toLocaleString()}`, 100 + barW + 8, y + (rowH - 12) / 2);
 		}
 	}
 
@@ -700,7 +944,7 @@ declare global {
 }
 
 declare module 'vue' {
-    interface GlobalComponents {
-        'e-stashes-view': DefineComponent<StashesViewProps & VueEventHandlers<Events>>;
-    }
+	interface GlobalComponents {
+		'e-stashes-view': DefineComponent<StashesViewProps & VueEventHandlers<Events>>;
+	}
 }

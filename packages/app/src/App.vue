@@ -500,6 +500,7 @@ const handleDropZoneDrop = (event: DragEvent) => {
     grid-template-columns: 1fr auto;
     align-items: center;
     gap: 0.8rem;
+    padding-left: 5rem;
 }
 .toolbar__left,
 .toolbar__right {
