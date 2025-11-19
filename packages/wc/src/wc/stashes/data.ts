@@ -75,6 +75,17 @@ export class MockStashLoader implements IStashLoader {
     async ninjaDenseOverviewsRaw(_league: League): Promise<Record<string, unknown>> {
         return {};
     }
+    async wealthSnapshot(_league: League, _tabs: Array<{ stash_id: string; substash_id?: string | null }>): Promise<{ timestamp: number; league: string; total_chaos: number; total_divines: number | null; by_category: Record<string, { chaos: number }> }> {
+        const now = Math.floor(Date.now() / 1000);
+        return { timestamp: now, league, total_chaos: 0, total_divines: null, by_category: {} };
+    }
+    async listSnapshots(_league: League, _limit?: number): Promise<Array<{ timestamp: number; league: string; total_chaos: number; total_divines: number | null; by_category: Record<string, { chaos: number }> }>> {
+        return [];
+    }
+    async wealthSnapshotCached(_league: League, _tabs: Array<TabWithItems>): Promise<{ timestamp: number; league: string; total_chaos: number; total_divines: number | null; by_category: Record<string, { chaos: number }> }> {
+        const now = Math.floor(Date.now() / 1000);
+        return { timestamp: now, league, total_chaos: 0, total_divines: null, by_category: {} };
+    }
     tabs(_league: League): Promise<NoItemsTab[]> {
         return new Promise(r => r(stashes));
     }

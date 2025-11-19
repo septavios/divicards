@@ -76,9 +76,21 @@ export class StashLoader implements IStashLoader {
 		return command('vial_prices', { league });
 	}
 
-	ninjaDenseOverviewsRaw(league: League): Promise<Record<string, unknown>> {
-		return command('ninja_dense_overviews_raw', { league });
-	}
+    ninjaDenseOverviewsRaw(league: League): Promise<Record<string, unknown>> {
+        return command('ninja_dense_overviews_raw', { league });
+    }
+
+    wealthSnapshot(league: League, tabs: Array<{ stash_id: string; substash_id?: string | null }>): Promise<{ timestamp: number; league: string; total_chaos: number; total_divines: number | null; by_category: Record<string, { chaos: number }> }> {
+        return command('wealth_snapshot', { league, tabs });
+    }
+
+    listSnapshots(league: League, limit?: number): Promise<Array<{ timestamp: number; league: string; total_chaos: number; total_divines: number | null; by_category: Record<string, { chaos: number }> }>> {
+        return command('list_snapshots', { league, limit });
+    }
+
+    wealthSnapshotCached(league: League, tabs: Array<TabWithItems>): Promise<{ timestamp: number; league: string; total_chaos: number; total_divines: number | null; by_category: Record<string, { chaos: number }> }> {
+        return command('wealth_snapshot_cached', { league, tabs });
+    }
 
 	async tabs(league: League | string): Promise<NoItemsTab[]> {
 		const { stashes = [] } = await command('stashes', { league });

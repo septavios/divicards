@@ -14,6 +14,7 @@ use reqwest::{Client, RequestBuilder};
 use serde::Deserialize;
 use tauri::{command, State, Window};
 use tokio::sync::Mutex;
+use tokio::time::{sleep, Duration};
 use tracing::instrument;
 
 #[instrument(skip(prices, window))]
@@ -119,34 +120,45 @@ impl StashAPI {
             None => format!("{API_URL}/stash/{league}/{stash_id}"),
         };
 
-        let response = StashAPI::with_auth_headers(&url, version).send().await?;
+        loop {
+            let response = StashAPI::with_auth_headers(&url, version).send().await?;
 
-        let headers = &response.headers();
-        if let Some(s) = headers.get("retry-after") {
-            let s = s.to_str().unwrap().to_owned();
-            return Err(Error::RetryAfter(s));
-        }
-        if let Some(limit_account_header) = headers.get("x-rate-limit-account") {
-            if let Some(limit_account_state_header) = headers.get("x-rate-limit-account-state") {
-                println!(
-                    "x-rate-limit-account: {limit_account_header:?}, x-rate-limit-account-state: {limit_account_state_header:?}"
-                );
+            let headers = &response.headers();
+            if let Some(s) = headers.get("retry-after") {
+                let secs = s.to_str().unwrap().parse::<u64>().unwrap_or(1);
+                sleep(Duration::from_secs(secs + 1)).await;
+                continue;
+            }
+            if let Some(limit_account_header) = headers.get("x-rate-limit-account") {
+                if let Some(limit_account_state_header) = headers.get("x-rate-limit-account-state") {
+                    println!(
+                        "x-rate-limit-account: {limit_account_header:?}, x-rate-limit-account-state: {limit_account_state_header:?}"
+                    );
+                };
             };
-        };
 
-        #[derive(Deserialize)]
-        struct ResponseShape {
-            stash: TabWithItems,
+            #[derive(Deserialize)]
+            struct ResponseShape { stash: TabWithItems }
+            let response_shape = response.json::<ResponseShape>().await?;
+            // be nice to API: small gap between calls
+            sleep(Duration::from_millis(1100)).await;
+            return Ok(response_shape.stash);
         }
-
-        let response_shape = response.json::<ResponseShape>().await?;
-        Ok(response_shape.stash)
     }
 
     async fn stashes(league: League, version: &AppVersion) -> Result<TabNoItems, Error> {
         let url = format!("{API_URL}/stash/{league}");
-        let response = StashAPI::with_auth_headers(&url, version).send().await?;
-        Ok(response.json().await?)
+        loop {
+            let response = StashAPI::with_auth_headers(&url, version).send().await?;
+            if let Some(s) = response.headers().get("retry-after") {
+                let secs = s.to_str().unwrap().parse::<u64>().unwrap_or(1);
+                sleep(Duration::from_secs(secs + 1)).await;
+                continue;
+            }
+            let out = response.json().await?;
+            sleep(Duration::from_millis(1100)).await;
+            return Ok(out);
+        }
     }
 
     fn with_auth_headers(url: &str, version: &AppVersion) -> RequestBuilder {

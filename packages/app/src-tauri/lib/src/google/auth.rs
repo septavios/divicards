@@ -141,6 +141,11 @@ pub fn google_logout() {
     AccessTokenStorage::new().delete().ok();
 }
 
+#[command]
+pub fn google_has_token() -> bool {
+    AccessTokenStorage::new().get().is_ok()
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum AuthResponse {

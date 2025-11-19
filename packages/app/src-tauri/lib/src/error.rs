@@ -10,6 +10,7 @@ pub enum Error {
     DiviError(divi::error::Error),
     AuthError(AuthError),
     IoError(io::Error),
+    SqlError(rusqlite::Error),
     RetryAfter(String),
     GoogleError(googlesheets::error::Error),
     ConfigDirNotExists,
@@ -28,6 +29,7 @@ impl Error {
             Error::DiviError(_) => "diviError",
             Error::AuthError(_) => "authError",
             Error::IoError(_) => "ioError",
+            Error::SqlError(_) => "sqlError",
             Error::RetryAfter(_) => "retryAfterError",
             Error::GoogleError(_) => "googleError",
             Error::ConfigDirNotExists => "configDirNotExists",
@@ -44,6 +46,7 @@ impl Display for Error {
             Error::SerdeError(err) => err.fmt(f),
             Error::DiviError(err) => err.fmt(f),
             Error::IoError(err) => err.fmt(f),
+            Error::SqlError(err) => err.fmt(f),
             Error::RetryAfter(secs) => {
                 write!(f, "You have reached the limit, retry after {secs} seconds")
             }
@@ -112,5 +115,11 @@ impl From<io::Error> for Error {
 impl From<googlesheets::error::Error> for Error {
     fn from(value: googlesheets::error::Error) -> Self {
         Error::GoogleError(value)
+    }
+}
+
+impl From<rusqlite::Error> for Error {
+    fn from(value: rusqlite::Error) -> Self {
+        Error::SqlError(value)
     }
 }

@@ -47,6 +47,9 @@ importers:
       poe-custom-elements:
         specifier: 0.3.19
         version: 0.3.19
+      sql.js:
+        specifier: 1.9.0
+        version: 1.9.0
       vue:
         specifier: 3.5.16
         version: 3.5.16(typescript@5.8.3)
@@ -2866,6 +2869,9 @@ packages:
   speakingurl@14.0.1:
     resolution: {integrity: sha512-1POYv7uv2gXoyGFpBCmpDVSNV74IfsWlDW216UPjbWufNf+bSU6GdbDsxdcxtfwb4xlI3yxzOTKClUosxARYrQ==}
     engines: {node: '>=0.10.0'}
+
+  sql.js@1.9.0:
+    resolution: {integrity: sha512-+QMN8NU5KJxofT+lEaSLYdhh+Pdq7ZYS6X5bSbpmD+4SKFf+qBmr+coKT07LZ+keUNh1sf3Nz9dQwD8WNI2i/Q==}
 
   statuses@1.5.0:
     resolution: {integrity: sha512-OpZ3zP+jT1PI7I8nemJX4AKmAX070ZkYPVWV/AaKTJl+tXCTGyVdC1a4SL8RUQYEwk/f34ZX8UTykN68FwrqAA==}
@@ -6132,6 +6138,8 @@ snapshots:
   source-map@0.7.4: {}
 
   speakingurl@14.0.1: {}
+
+  sql.js@1.9.0: {}
 
   statuses@1.5.0: {}
 

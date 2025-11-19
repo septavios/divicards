@@ -20,6 +20,9 @@ export interface IStashLoader {
     vialPrices: (league: League) => Promise<Array<{ name: string; chaos_value: number | null }>>;
     divinationCardPrices: (league: League) => Promise<Array<{ name: string; chaos_value: number | null }>>;
     ninjaDenseOverviewsRaw: (league: League) => Promise<Record<string, unknown>>;
+    wealthSnapshot: (league: League, tabs: Array<{ stash_id: string; substash_id?: string | null }>) => Promise<{ timestamp: number; league: string; total_chaos: number; total_divines: number | null; by_category: Record<string, { chaos: number }> }>;
+    listSnapshots: (league: League, limit?: number) => Promise<Array<{ timestamp: number; league: string; total_chaos: number; total_divines: number | null; by_category: Record<string, { chaos: number }> }>>;
+    wealthSnapshotCached: (league: League, tabs: Array<TabWithItems>) => Promise<{ timestamp: number; league: string; total_chaos: number; total_divines: number | null; by_category: Record<string, { chaos: number }> }>;
 }
 
 export interface IDefaultStashLoader {

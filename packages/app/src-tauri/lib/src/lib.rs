@@ -6,3 +6,4 @@ pub mod google;
 pub mod poe;
 pub mod prices;
 pub mod version;
+pub mod wealth;

@@ -103,6 +103,14 @@ export const useAuthStore = defineStore('auth', {
 		},
 	},
 	actions: {
+		async init(): Promise<void> {
+			try {
+				const has = await command('poe_has_token');
+				if (has) {
+					setExpiration(EXPIRES_IN_MILLIS);
+				}
+			} catch {}
+		},
 		async login(): Promise<void> {
 			if (this.loggingIn) {
 				console.log('Already logging in');

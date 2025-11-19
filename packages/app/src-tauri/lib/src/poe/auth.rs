@@ -110,6 +110,11 @@ pub fn poe_logout() {
     AccessTokenStorage::new().delete().ok();
 }
 
+#[command]
+pub fn poe_has_token() -> bool {
+    AccessTokenStorage::new().get().is_ok()
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum AuthResponse {

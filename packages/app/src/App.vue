@@ -38,6 +38,8 @@ const dropZoneRef = shallowRef<HTMLElement | null>(null);
 const sampleStore = useSampleStore();
 const authStore = useAuthStore();
 const googleAuthStore = useGoogleAuthStore();
+authStore.init();
+googleAuthStore.init();
 const stashVisible = ref(false);
 const shouldShowImportActions = computed(() => !stashVisible.value || !authStore.loggedIn);
 const { releaseUrl, tag } = useAppVersion();

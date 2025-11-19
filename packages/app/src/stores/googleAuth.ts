@@ -107,8 +107,21 @@ export const useGoogleAuthStore = defineStore('google-auth', {
 			return log;
 		},
 	},
-    actions: {
-        async login(): Promise<void> {
+	actions: {
+		async init(): Promise<void> {
+			try {
+				const has = await command('google_has_token');
+				if (has) {
+					const identity = await command('google_identity');
+					if (identity) {
+						this.name = identity.given_name;
+						this.picture = identity.picture ?? '';
+						setExpiration(EXPIRES_IN_MILLIS);
+					}
+				}
+			} catch {}
+		},
+		async login(): Promise<void> {
 			if (this.loggingIn) {
 				console.log('Already logging in');
 				if (!this.auth_url) return;

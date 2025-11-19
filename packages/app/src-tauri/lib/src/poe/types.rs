@@ -38,6 +38,15 @@ impl Item {
     pub fn stack_size(&self) -> Option<u32> {
         self.0["stackSize"].as_u64().map(|v| v as u32)
     }
+    pub fn map_tier(&self) -> Option<u8> {
+        self.0["mapTier"].as_u64().map(|v| v as u8)
+    }
+    pub fn gem_level(&self) -> Option<u8> {
+        self.0["gemLevel"].as_u64().map(|v| v as u8)
+    }
+    pub fn gem_quality(&self) -> Option<u8> {
+        self.0["gemQuality"].as_u64().map(|v| v as u8)
+    }
 }
 
 /// Tab from /stashes poe api route, contains only metadata and not items

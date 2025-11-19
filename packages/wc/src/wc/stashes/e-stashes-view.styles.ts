@@ -70,4 +70,69 @@ export const styles: CSSResult = css`
 		display: block;
 		margin-inline: auto;
 	}
+
+	.wealth-history {
+		margin-block: 1rem;
+		padding: 0.75rem 0.5rem;
+		border: 1px solid var(--sl-color-neutral-200);
+		border-radius: 0.5rem;
+		background-color: var(--sl-color-neutral-50);
+	}
+
+	.wealth-summary {
+		display: flex;
+		gap: 1rem;
+		flex-wrap: wrap;
+		align-items: center;
+		padding-inline: 0.5rem;
+	}
+
+	.summary-item strong {
+		color: var(--sl-color-neutral-800);
+	}
+
+	.charts {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: 0.75rem;
+		padding: 0.5rem;
+	}
+
+	@container (min-width: 900px) {
+		.charts {
+			grid-template-columns: 1fr 1fr;
+		}
+	}
+
+	canvas#wealth-line,
+	canvas#wealth-bars {
+		display: block;
+		width: 100%;
+		border: 1px solid var(--sl-color-neutral-200);
+		border-radius: 0.25rem;
+		background-color: var(--sl-color-neutral-0);
+	}
+
+	.category-list {
+		padding: 0.5rem;
+	}
+
+	.category-row {
+		display: grid;
+		grid-template-columns: 2fr 1fr 1fr;
+		gap: 0.5rem;
+		align-items: center;
+		padding: 0.25rem 0.25rem;
+		border-bottom: 1px dashed var(--sl-color-neutral-200);
+	}
+
+	.category-name {
+		color: var(--sl-color-neutral-800);
+	}
+
+	.category-val,
+	.category-pct {
+		text-align: right;
+		color: var(--sl-color-neutral-700);
+	}
 `;

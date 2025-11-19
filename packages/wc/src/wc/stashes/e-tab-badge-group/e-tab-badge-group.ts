@@ -59,7 +59,7 @@ export class TabBadgeGroupElement extends LitElement {
 		});
 	}
 	get shouldFilter(): boolean {
-		return this.stashes.length > 50;
+		return this.stashes.length > 0;
 	}
 	get withHideRemoveOnly(): boolean {
 		return shouldUnlockHideRemoveOnly(this.league, this.stashes);
@@ -75,7 +75,7 @@ export class TabBadgeGroupElement extends LitElement {
 	}
 
 	willUpdate(changed: Map<string, unknown>): void {
-		if (changed.has('nameQuery') || changed.has('hideRemoveOnly') || changed.has('perPage')) {
+		if (changed.has('stashtab_name_query') || changed.has('hideRemoveOnly') || changed.has('perPage')) {
 			this.page = 1;
 		}
 	}
