@@ -2,9 +2,24 @@ import { DivinationCardsSample, League } from './types.js';
 import { NoItemsTab, TabWithItems } from 'poe-custom-elements';
 
 export interface IStashLoader {
-	tabs(league: League): Promise<NoItemsTab[]>;
-	sampleFromTab(tabId: string, league: League): Promise<DivinationCardsSample>;
-	tab: (tabId: string, league: League) => Promise<TabWithItems>;
+    tabs(league: League): Promise<NoItemsTab[]>;
+    sampleFromTab(tabId: string, league: League): Promise<DivinationCardsSample>;
+    tab: (tabId: string, league: League) => Promise<TabWithItems>;
+    tabFromBadge: (tab: NoItemsTab, league: League) => Promise<TabWithItems>;
+    sampleFromBadge: (tab: NoItemsTab, league: League) => Promise<DivinationCardsSample>;
+    mapPrices: (league: League) => Promise<Array<{ name: string; tier: number; chaos_value: number | null }>>;
+    currencyPrices: (league: League) => Promise<Array<{ name: string; chaos_value: number | null }>>;
+    fragmentPrices: (league: League) => Promise<Array<{ name: string; chaos_value: number | null }>>;
+    essencePrices: (league: League) => Promise<Array<{ name: string; variant: string | null; chaos_value: number | null }>>;
+    gemPrices: (league: League) => Promise<Array<{ name: string; level: number; quality: number; chaos_value: number | null }>>;
+    oilPrices: (league: League) => Promise<Array<{ name: string; chaos_value: number | null }>>;
+    incubatorPrices: (league: League) => Promise<Array<{ name: string; chaos_value: number | null }>>;
+    fossilPrices: (league: League) => Promise<Array<{ name: string; chaos_value: number | null }>>;
+    resonatorPrices: (league: League) => Promise<Array<{ name: string; chaos_value: number | null }>>;
+    deliriumOrbPrices: (league: League) => Promise<Array<{ name: string; chaos_value: number | null }>>;
+    vialPrices: (league: League) => Promise<Array<{ name: string; chaos_value: number | null }>>;
+    divinationCardPrices: (league: League) => Promise<Array<{ name: string; chaos_value: number | null }>>;
+    ninjaDenseOverviewsRaw: (league: League) => Promise<Record<string, unknown>>;
 }
 
 export interface IDefaultStashLoader {

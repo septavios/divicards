@@ -17,20 +17,65 @@ const sleepSecs = (secs: number): Promise<void> => new Promise(resolve => setTim
 
 let stash: 'quad' | 'fragments' = 'quad';
 export class MockStashLoader implements IStashLoader {
-	async tab(_tabId: string, _league: string): Promise<TabWithItems> {
-		const nextStash = stash === 'quad' ? fragments : quad;
-		stash = stash === 'quad' ? 'fragments' : 'quad';
-		await sleepSecs(0.2);
-		return nextStash;
-	}
-	sampleFromTab(_tabId: string, _league: League): Promise<DivinationCardsSample> {
-		return new Promise(r =>
-			setTimeout(() => {
-				r(sample);
-			}, 50)
-		);
-	}
-	tabs(_league: League): Promise<NoItemsTab[]> {
-		return new Promise(r => r(stashes));
-	}
+    async tab(_tabId: string, _league: string): Promise<TabWithItems> {
+        const nextStash = stash === 'quad' ? fragments : quad;
+        stash = stash === 'quad' ? 'fragments' : 'quad';
+        await sleepSecs(0.2);
+        return nextStash;
+    }
+    async tabFromBadge(_tab: NoItemsTab, _league: League): Promise<TabWithItems> {
+        return this.tab('', _league);
+    }
+    sampleFromTab(_tabId: string, _league: League): Promise<DivinationCardsSample> {
+        return new Promise(r =>
+            setTimeout(() => {
+                r(sample);
+            }, 50)
+        );
+    }
+    sampleFromBadge(_tab: NoItemsTab, _league: League): Promise<DivinationCardsSample> {
+        return this.sampleFromTab('', _league);
+    }
+    async mapPrices(_league: League): Promise<Array<{ name: string; tier: number; chaos_value: number | null }>> {
+        return [];
+    }
+    async currencyPrices(_league: League): Promise<Array<{ name: string; chaos_value: number | null }>> {
+        return [];
+    }
+    async fragmentPrices(_league: League): Promise<Array<{ name: string; chaos_value: number | null }>> {
+        return [];
+    }
+    async essencePrices(_league: League): Promise<Array<{ name: string; variant: string | null; chaos_value: number | null }>> {
+        return [];
+    }
+    async gemPrices(_league: League): Promise<Array<{ name: string; level: number; quality: number; chaos_value: number | null }>> {
+        return [];
+    }
+    async oilPrices(_league: League): Promise<Array<{ name: string; chaos_value: number | null }>> {
+        return [];
+    }
+    async incubatorPrices(_league: League): Promise<Array<{ name: string; chaos_value: number | null }>> {
+        return [];
+    }
+    async fossilPrices(_league: League): Promise<Array<{ name: string; chaos_value: number | null }>> {
+        return [];
+    }
+    async resonatorPrices(_league: League): Promise<Array<{ name: string; chaos_value: number | null }>> {
+        return [];
+    }
+    async deliriumOrbPrices(_league: League): Promise<Array<{ name: string; chaos_value: number | null }>> {
+        return [];
+    }
+    async vialPrices(_league: League): Promise<Array<{ name: string; chaos_value: number | null }>> {
+        return [];
+    }
+    async divinationCardPrices(_league: League): Promise<Array<{ name: string; chaos_value: number | null }>> {
+        return [];
+    }
+    async ninjaDenseOverviewsRaw(_league: League): Promise<Record<string, unknown>> {
+        return {};
+    }
+    tabs(_league: League): Promise<NoItemsTab[]> {
+        return new Promise(r => r(stashes));
+    }
 }
