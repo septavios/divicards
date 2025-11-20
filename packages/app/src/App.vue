@@ -11,6 +11,7 @@ import { useGoogleAuthStore } from './stores/googleAuth';
 import { useAuthStore } from './stores/auth';
 import { useAutoAnimate } from './composables/useAutoAnimate';
 import '@shoelace-style/shoelace/dist/components/copy-button/copy-button.js';
+import '@shoelace-style/shoelace/dist/components/alert/alert.js';
 import { BasePopupElement } from '@divicards/wc/e-base-popup.js';
 import UpdateChangelog from './components/UpdateChangelog.vue';
 import NativeBrowserLink from './components/NativeBrowserLink.vue';
@@ -85,6 +86,15 @@ const bulkLoadStash = async () => {
     bulkMode.value = true;
     await nextTick();
     stashesViewRef.value?.dispatchEvent(new Event('stashes__bulk-load-all'));
+};
+
+const handleClearCache = () => {
+    stashesViewRef.value?.dispatchEvent(new Event('stashes__clear-cache'));
+};
+
+const handleToast = (e: CustomEvent) => {
+    const { variant, message } = e.detail;
+    toast(variant, message);
 };
 
 async function quickExportToSheets() {
@@ -322,6 +332,12 @@ const handleDropZoneDrop = (event: DragEvent) => {
                     >Load from Stash</sl-button
                 >
                 <sl-button variant="default" @click="bulkLoadStash">Bulk load Stash</sl-button>
+                <sl-tooltip content="Clear all cached tabs and snapshot history">
+                    <sl-button variant="danger" @click="handleClearCache">
+                        <sl-icon slot="prefix" name="trash"></sl-icon>
+                        Clear Cache
+                    </sl-button>
+                </sl-tooltip>
                 <e-import-file-tip v-if="!isDragging && shouldShowImportActions"></e-import-file-tip>
             </div>
             <div class="toolbar__right">
@@ -406,6 +422,7 @@ const handleDropZoneDrop = (event: DragEvent) => {
             @stashes__close="stashVisible = false"
             @stashes__extract-cards="handle_extract_cards"
             @change:selected_tabs="e => (selectedIds = Array.from(e.$selected_tabs.keys()))"
+            @stashes__toast="handleToast"
         ></e-stashes-view>
 		<Transition>
 			<div>

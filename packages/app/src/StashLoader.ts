@@ -52,21 +52,21 @@ export class StashLoader implements IStashLoader {
 		return command('oil_prices', { league });
 	}
 
-    incubatorPrices(league: League): Promise<Array<{ name: string; chaos_value: number | null }>> {
-        return command('incubator_prices', { league });
-    }
+	incubatorPrices(league: League): Promise<Array<{ name: string; chaos_value: number | null }>> {
+		return command('incubator_prices', { league });
+	}
 
 	fossilPrices(league: League): Promise<Array<{ name: string; chaos_value: number | null }>> {
 		return command('fossil_prices', { league });
 	}
 
-    resonatorPrices(league: League): Promise<Array<{ name: string; chaos_value: number | null }>> {
-        return command('resonator_prices', { league });
-    }
+	resonatorPrices(league: League): Promise<Array<{ name: string; chaos_value: number | null }>> {
+		return command('resonator_prices', { league });
+	}
 
-    divinationCardPrices(league: League): Promise<Array<{ name: string; chaos_value: number | null }>> {
-        return command('divination_card_prices', { league });
-    }
+	divinationCardPrices(league: League): Promise<Array<{ name: string; chaos_value: number | null }>> {
+		return command('divination_card_prices', { league });
+	}
 
 	deliriumOrbPrices(league: League): Promise<Array<{ name: string; chaos_value: number | null }>> {
 		return command('delirium_orb_prices', { league });
@@ -76,21 +76,25 @@ export class StashLoader implements IStashLoader {
 		return command('vial_prices', { league });
 	}
 
-    ninjaDenseOverviewsRaw(league: League): Promise<Record<string, unknown>> {
-        return command('ninja_dense_overviews_raw', { league });
-    }
+	ninjaDenseOverviewsRaw(league: League): Promise<Record<string, unknown>> {
+		return command('ninja_dense_overviews_raw', { league });
+	}
 
-    wealthSnapshot(league: League, tabs: Array<{ stash_id: string; substash_id?: string | null }>): Promise<{ timestamp: number; league: string; total_chaos: number; total_divines: number | null; by_category: Record<string, { chaos: number }> }> {
-        return command('wealth_snapshot', { league, tabs });
-    }
+	wealthSnapshot(league: League, tabs: Array<{ stash_id: string; substash_id?: string | null }>): Promise<{ timestamp: number; league: string; total_chaos: number; total_divines: number | null; by_category: Record<string, { chaos: number }> }> {
+		return command('wealth_snapshot', { league, tabs });
+	}
 
-    listSnapshots(league: League, limit?: number): Promise<Array<{ timestamp: number; league: string; total_chaos: number; total_divines: number | null; by_category: Record<string, { chaos: number }> }>> {
-        return command('list_snapshots', { league, limit });
-    }
+	listSnapshots(league: League, limit?: number): Promise<Array<{ timestamp: number; league: string; total_chaos: number; total_divines: number | null; by_category: Record<string, { chaos: number }> }>> {
+		return command('list_snapshots', { league, limit });
+	}
 
-    wealthSnapshotCached(league: League, tabs: Array<TabWithItems>): Promise<{ timestamp: number; league: string; total_chaos: number; total_divines: number | null; by_category: Record<string, { chaos: number }> }> {
-        return command('wealth_snapshot_cached', { league, tabs });
-    }
+	wealthSnapshotCached(league: League, tabs: Array<TabWithItems>): Promise<{ timestamp: number; league: string; total_chaos: number; total_divines: number | null; by_category: Record<string, { chaos: number }> }> {
+		return command('wealth_snapshot_cached', { league, tabs });
+	}
+
+	clearSnapshots(league: League): Promise<void> {
+		return command('clear_snapshots', { league });
+	}
 
 	async tabs(league: League | string): Promise<NoItemsTab[]> {
 		const { stashes = [] } = await command('stashes', { league });

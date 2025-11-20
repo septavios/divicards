@@ -39,29 +39,6 @@ import { TabClickEvent } from './e-tab-badge/events.js';
 const SECS_300 = 300 * 1000;
 
 type ToastVariant = 'info' | 'success' | 'neutral' | 'warning' | 'danger';
-const toast = (variant: ToastVariant, message: string) => {
-	const iconVariantRecord: Record<ToastVariant, string> = {
-		info: 'info-circle',
-		success: 'check2-circle',
-		neutral: 'gear',
-		warning: 'exclamation-triangle',
-		danger: 'exclamation-octagon',
-	};
-	const iconName = iconVariantRecord[variant];
-	const duration = variant === 'warning' || variant === 'danger' ? undefined : 5000;
-	const variantProp = variant === 'info' ? 'primary' : variant;
-	const alert = Object.assign(document.createElement('sl-alert'), {
-		closable: true,
-		duration,
-		variant: variantProp,
-	} as any);
-	const icon = Object.assign(document.createElement('sl-icon'), {
-		name: iconName,
-		slot: 'icon',
-	} as any);
-	alert.append(icon, message);
-	(alert as any).toast();
-};
 
 export interface StashesViewProps {
 	league?: League;
@@ -70,6 +47,11 @@ export interface StashesViewProps {
 
 export type DownloadAs = (typeof DOWNLOAD_AS_VARIANTS)[number];
 const DOWNLOAD_AS_VARIANTS = ['divination-cards-sample', 'general-tab'] as const;
+
+interface CachedTab {
+	data: TabWithItems;
+	timestamp: number;
+}
 
 @customElement('e-stashes-view')
 export class StashesViewElement extends LitElement {
@@ -91,7 +73,8 @@ export class StashesViewElement extends LitElement {
 	@state() stashLoadsAvailable = 30;
 	@state() hoveredErrorTabId: string | null = null;
 	@state() downloadedStashTabs: Array<TabWithItems> = [];
-	@state() tabsCache: Map<string, TabWithItems> = new Map();
+	@state() tabsCache: Map<string, CachedTab> = new Map();
+	private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 	@state() opened_tab: NoItemsTab | null = null;
 	@state() snapshots: Array<{ timestamp: number; league: string; total_chaos: number; total_divines: number | null; by_category: Record<string, { chaos: number }> }> = [];
 	/** Indicator whether cards was just extracted. */
@@ -99,45 +82,22 @@ export class StashesViewElement extends LitElement {
 	@state() showWealth = false;
 	@state() hoveredSnapshot: { x: number; y: number; snapshot: any; index: number } | null = null;
 	@state() bulkProgress: { loaded: number; total: number; name: string } | null = null;
+	@state() chartMode: 'chaos' | 'divine' = 'chaos';
+	@state() chartRange: 'all' | 'recent' = 'all';
+	private lastToastTime = 0;
 
 	private stashTabTask = new Task(this, {
 		task: async ([tab, selectedTabs]: [NoItemsTab | null, SelectedStashtabs]) => {
 			if (this.multiselect && selectedTabs && selectedTabs.size === 0) {
 				return null;
 			}
-			// Aggregation Mode
-			if (this.multiselect && selectedTabs && selectedTabs.size > 0) {
-				const selectedIds = Array.from(selectedTabs.keys());
-				const items: TabWithItems['items'] = [];
 
-				// Collect items from cache
-				for (const id of selectedIds) {
-					const cached = this.tabsCache.get(id);
-					if (cached && cached.items) {
-						items.push(...cached.items);
-					}
-				}
-
-				// Create a synthetic tab for aggregation
-				// We use 'QuadStash' type to trigger the generic priced list view which handles most item types well
-				const aggregatedTab: TabWithItems = {
-					id: 'aggregated-view',
-					name: `Aggregated (${selectedIds.length} tabs)`,
-					type: 'QuadStash',
-					index: 0,
-					items: items,
-					metadata: {
-						colour: 'ffffff'
-					}
-				};
-				return aggregatedTab;
-			}
 
 			if (!tab) {
 				return null;
 			}
 			// If we have this tab in cache, serve it without an API call
-			const inCache = this.tabsCache.get(tab.id);
+			const inCache = this.#getCachedTab(tab.id);
 			if (inCache) {
 				return inCache;
 			}
@@ -181,12 +141,91 @@ export class StashesViewElement extends LitElement {
 			}
 			const loaded = await this.#loadSingleTabContent('general-tab', tab.id, this.league, (_id, _league) => this.stashLoader.tabFromBadge(this.opened_tab!, this.league), false);
 			if (loaded && typeof (loaded as any)?.id === 'string') {
-				this.tabsCache.set((loaded as any).id, loaded as any);
+				this.#setCachedTab((loaded as any).id, loaded as any);
 			}
 			return loaded;
 		},
 		args: () => [this.opened_tab, this.selected_tabs] as [NoItemsTab | null, SelectedStashtabs],
 	});
+
+	// Cache helper methods with TTL support
+	#isCacheValid(id: string): boolean {
+		const cached = this.tabsCache.get(id);
+		if (!cached) return false;
+		return Date.now() - cached.timestamp < this.CACHE_TTL;
+	}
+
+	#getCachedTab(id: string): TabWithItems | null {
+		if (this.#isCacheValid(id)) {
+			return this.tabsCache.get(id)!.data;
+		}
+		// Remove expired cache entry
+		this.tabsCache.delete(id);
+		return null;
+	}
+
+	#toast(variant: ToastVariant, message: string): void {
+		const now = Date.now();
+		if (now - this.lastToastTime < 1000 && message === 'Snapshot captured') {
+			return;
+		}
+		this.lastToastTime = now;
+		this.dispatchEvent(new CustomEvent('stashes__toast', {
+			detail: { variant, message },
+			bubbles: true,
+			composed: true
+		}));
+	}
+
+	#setCachedTab(id: string, tab: TabWithItems): void {
+		this.tabsCache.set(id, {
+			data: tab,
+			timestamp: Date.now()
+		});
+		this.requestUpdate();
+	}
+
+	#renderAggregatedView(): TemplateResult | typeof nothing {
+		if (!this.multiselect || this.selected_tabs.size === 0) return nothing;
+
+		const selectedIds = Array.from(this.selected_tabs.keys());
+		const items: TabWithItems['items'] = [];
+
+		// Collect items from cache
+		for (const id of selectedIds) {
+			const cached = this.#getCachedTab(id);
+			if (cached && cached.items) {
+				items.push(...cached.items);
+			}
+		}
+
+		// Don't show aggregated table if we have no items yet
+		if (items.length === 0) {
+			return nothing;
+		}
+
+		// Create a synthetic tab for aggregation
+		const aggregatedTab: TabWithItems = {
+			id: 'aggregated-view',
+			name: `Aggregated (${selectedIds.length} tabs)`,
+			type: 'QuadStash',
+			index: 0,
+			items: items,
+			metadata: {
+				colour: 'ffffff'
+			}
+		};
+
+		return html`<e-stash-tab-container
+			.cardsJustExtracted=${this.cardsJustExtracted}
+			@e-stash-tab-container__close=${this.#handleTabContainerClose}
+			@e-stash-tab-container__extract-cards=${this.#emitExtractCards}
+			status="complete"
+			.league=${this.league}
+			.stashLoader=${this.stashLoader}
+			.tab=${aggregatedTab}
+		></e-stash-tab-container>`;
+	}
 
 	constructor() {
 		super();
@@ -198,6 +237,11 @@ export class StashesViewElement extends LitElement {
 		this.addEventListener('stashes__bulk-load-all', async e => {
 			e.stopPropagation();
 			await this.#bulkLoadAllTabs();
+		});
+
+		this.addEventListener('stashes__clear-cache', async e => {
+			e.stopPropagation();
+			await this.#clearAllCache();
 		});
 		this.addEventListener('stashes__force-reload-selected', e => {
 			e.stopPropagation();
@@ -295,7 +339,9 @@ export class StashesViewElement extends LitElement {
 					<div class="bulk-progress">
 						<div class="bulk-row">
 							<sl-spinner></sl-spinner>
-							<span class="bulk-text">Loading ${this.bulkProgress.name} (${this.bulkProgress.loaded}/${this.bulkProgress.total})...</span>
+							<span class="bulk-text">
+								${this.msg ? this.msg : `Loading ${this.bulkProgress.name} (${this.bulkProgress.loaded}/${this.bulkProgress.total})...`}
+							</span>
 						</div>
 						<div class="bulk-bar">
 							<div class="bulk-fill" style="width: ${Math.max(0, Math.min(100, Math.round((this.bulkProgress.loaded / Math.max(1, this.bulkProgress.total)) * 100)))}%"></div>
@@ -311,155 +357,32 @@ export class StashesViewElement extends LitElement {
 					  ></e-stash-tab-errors>`
 				: nothing}
 			</div>
-            ${this.showWealth && this.snapshots.length ? html`
-            <section class="wealth-history">
-                <div class="wealth-summary">
-                    ${(() => {
-					const latest = this.snapshots[0];
-					const prev = this.snapshots[1];
-					const chaos = Math.round(latest.total_chaos);
-
-					const chaosDiff = prev ? Math.round(latest.total_chaos - prev.total_chaos) : 0;
-					const chaosTrend = chaosDiff > 0 ? 'trend-up' : chaosDiff < 0 ? 'trend-down' : 'trend-neutral';
-					const chaosSign = chaosDiff > 0 ? '+' : '';
-					const trendIcon = chaosDiff > 0 ? 'arrow-up-short' : chaosDiff < 0 ? 'arrow-down-short' : 'dash';
-
-					return html`
-                            <div class="summary-card">
-                                <div class="summary-label"><sl-icon name="currency-bitcoin"></sl-icon> Total Chaos</div>
-                                <div class="summary-value">${chaos.toLocaleString()}</div>
-                                <div class="summary-sub ${chaosTrend}">
-                                    <sl-icon name="${trendIcon}"></sl-icon>
-                                    ${prev ? html`${chaosSign}${chaosDiff.toLocaleString()} vs last` : 'First snapshot'}
-                                </div>
-                            </div>
-                            			<div class="wealth-summary">
-                ${this.#renderSnapshotStats()}
-				<div class="summary-card">
-					<div class="summary-label">
-						<sl-icon name="piggy-bank"></sl-icon>
-						Total Wealth
-					</div>
-					<div class="summary-value">
-						${this.snapshots.length > 0
-							? formatChaosAmount(this.snapshots[0].total_chaos)
-							: '0c'}
-						<span class="summary-sub">
-                            ${this.#renderTrendIcon(this.snapshots)}
-                            ${this.snapshots.length > 1
-							? this.#calculateChange(
-								this.snapshots[0].total_chaos,
-								this.snapshots[1].total_chaos
-							)
-							: '0%'}
-                        </span>
-					</div>
-				</div>
-				<div class="summary-card">
-					<div class="summary-label">
-						<sl-icon name="clock-history"></sl-icon>
-						Snapshots
-					</div>
-					<div class="summary-value">
-						${this.snapshots.length}
-						<span class="summary-sub">Recorded</span>
-					</div>
-				</div>
-			</div>                                <div class="summary-sub trend-neutral">
-                                    <sl-icon name="clock"></sl-icon>
-                                    ${new Date(latest.timestamp * 1000).toLocaleDateString()}
-                                </div>
-                            </div>
-                        `;
-				})()}
-                </div>
-                <div class="charts">
-                    <div class="chart-container">
-                        <canvas 
-                            id="wealth-line"
-                            @mousemove=${this.#onChartMouseMove}
-                            @mouseleave=${this.#onChartMouseLeave}
-                        ></canvas>
-                        ${this.hoveredSnapshot ? html`
-                            <div 
-                                class="chart-tooltip"
-                                style="left: ${this.hoveredSnapshot.x}px; top: ${this.hoveredSnapshot.y - 10}px; transform: translate(-50%, -100%);"
-                            >
-                                <div class="tooltip-date">${new Date(this.hoveredSnapshot.snapshot.timestamp * 1000).toLocaleString()}</div>
-                                <div class="tooltip-row">
-                                    <span class="tooltip-label">Chaos:</span>
-                                    <span class="tooltip-val">${Math.round(this.hoveredSnapshot.snapshot.total_chaos).toLocaleString()}</span>
-                                </div>
-                                ${this.hoveredSnapshot.snapshot.total_divines ? html`
-                                <div class="tooltip-row">
-                                    <span class="tooltip-label">Divines:</span>
-                                    <span class="tooltip-val">${this.hoveredSnapshot.snapshot.total_divines.toFixed(2)}</span>
-                                </div>` : nothing}
-                            </div>
-                        ` : nothing}
-                    </div>
-                    <div class="chart-container">
-                        <canvas id="wealth-bars"></canvas>
-                    </div>
-                </div>
-                <div class="category-list">
-                    ${(() => {
-					const latest = this.snapshots[0];
-					const total = latest.total_chaos || 1;
-					const entries = Object.entries(latest.by_category || {}).map(([k, v]) => ({ name: k, chaos: v.chaos || 0 }));
-					entries.sort((a, b) => b.chaos - a.chaos);
-
-					const getIcon = (name: string) => {
-						if (name.includes('currency')) return 'coin';
-						if (name.includes('card')) return 'postcard';
-						if (name.includes('essence')) return 'droplet';
-						if (name.includes('fragment')) return 'puzzle';
-						if (name.includes('map')) return 'map';
-						return 'box';
-					};
-
-					return html`${entries.map(e => {
-						const pct = (e.chaos / total) * 100;
-						return html`
-                            <div class="category-card">
-                                <div class="category-icon">
-                                    <sl-icon name="${getIcon(e.name)}"></sl-icon>
-                                </div>
-                                <div class="category-details">
-                                    <div class="category-header">
-                                        <span class="cat-name">${e.name}</span>
-                                        <span class="cat-val">${Math.round(e.chaos).toLocaleString()} <small class="category-pct">(${pct.toFixed(1)}%)</small></span>
-                                    </div>
-                                    <div class="progress-bar">
-                                        <div class="progress-fill" style="width: ${pct}%"></div>
-                                    </div>
-                                </div>
-                            </div>`;
-					})}`;
-				})()}
-                </div>
-            </section>` : nothing}
+            ${this.showWealth && this.snapshots.length ? this.#renderWealthDashboard() : nothing}
 			<e-tab-badge-group
-				.multiselect=${this.multiselect}
-				league=${this.league}
 				.stashes=${this.stashtabs_badges}
 				.selected_tabs=${this.selected_tabs}
+				.multiselect=${this.multiselect}
+				.league=${this.league}
 				.errors=${this.errors}
 				.hoveredErrorTabId=${this.hoveredErrorTabId}
-				@change:multiselect=${this.#change_multiselect}
-				@change:selected_tabs=${this.#handle_selected_tabs_change}
+				.downloadedStashTabs=${this.downloadedStashTabs}
 				.badgesDisabled=${this.stashLoadsAvailable === 0}
+				@e-tab-badge-group__click=${this.#handle_tab_badge_click}
+				@e-tab-badge-group__multiselect-change=${this.#change_multiselect}
+				@e-tab-badge-group__selected-tabs-change=${this.#handle_selected_tabs_change}
 			></e-tab-badge-group>
 			${this.opened_tab || (this.multiselect && this.selected_tabs.size > 0)
-				? this.stashTabTask.render({
-					pending: () => {
-						return html`<e-stash-tab-container
+				? (this.multiselect
+					? this.#renderAggregatedView()
+					: this.stashTabTask.render({
+						pending: () => {
+							return html`<e-stash-tab-container
 								status="pending"
 								@e-stash-tab-container__close=${this.#handleTabContainerClose}
 							></e-stash-tab-container>`;
-					},
-					complete: tab =>
-						html`<e-stash-tab-container
+						},
+						complete: tab =>
+							html`<e-stash-tab-container
 								.cardsJustExtracted=${this.cardsJustExtracted}
 								@e-stash-tab-container__close=${this.#handleTabContainerClose}
 								@e-stash-tab-container__extract-cards=${this.#emitExtractCards}
@@ -468,29 +391,29 @@ export class StashesViewElement extends LitElement {
 								.stashLoader=${this.stashLoader}
 								.tab=${tab}
 							></e-stash-tab-container>`,
-					initial: () => {
-						return nothing;
-					},
-					error: (err: unknown) => {
-						if (
-							!(
-								typeof err === 'object' &&
-								err !== null &&
-								'message' in err &&
-								typeof err.message === 'string'
-							)
-						) {
-							return;
-						}
-						return html`<div>${err.message}</div>`;
-					},
-				})
+						initial: () => {
+							return nothing;
+						},
+						error: (err: unknown) => {
+							if (
+								!(
+									typeof err === 'object' &&
+									err !== null &&
+									'message' in err &&
+									typeof err.message === 'string'
+								)
+							) {
+								return;
+							}
+							return html`<div>${err.message}</div>`;
+						},
+					}))
 				: null}
 		</div>`;
 	}
 
 	protected override updated(map: PropertyValues<this>): void {
-		if (map.has('snapshots') || map.has('showWealth')) {
+		if (map.has('snapshots') || map.has('showWealth') || map.has('chartMode') || map.has('chartRange')) {
 			this.#renderHistoryCharts();
 		}
 		// Re-render chart when hover state changes to draw/clear crosshair
@@ -538,6 +461,7 @@ export class StashesViewElement extends LitElement {
 
 		try {
 			this.multiselect = true;
+
 			const next: SelectedStashtabs = new Map();
 			for (const t of this.stashtabs_badges) {
 				next.set(t.id, { id: t.id, name: t.name });
@@ -617,47 +541,61 @@ export class StashesViewElement extends LitElement {
 		const totalToLoad = tabsToLoad.length;
 
 		this.fetchingStashTab = true;
-		try {
-			for (const { id, name: stashtab_name } of tabsToLoad) {
-				loadedCount++;
-				this.bulkProgress = { loaded: loadedCount, total: totalToLoad, name: stashtab_name };
+		const CONCURRENCY = 2; // Load 2 tabs at a time
 
-				try {
-					switch (this.downloadAs) {
-						case 'divination-cards-sample': {
-							const badge = this.stashtabs_badges.find(t => t.id === id)!;
-							const sample = await this.#loadSingleTabContent('sample', id, league, (_sid, _lg) => this.stashLoader.sampleFromBadge(badge, league), force);
-							this.dispatchEvent(new SampleFromStashtabEvent(stashtab_name, sample, league));
-							break;
+		try {
+			// Process tabs in batches for parallel loading
+			for (let i = 0; i < tabsToLoad.length; i += CONCURRENCY) {
+				const batch = tabsToLoad.slice(i, i + CONCURRENCY);
+
+				// Load batch in parallel using Promise.allSettled
+				await Promise.allSettled(
+					batch.map(async ({ id, name: stashtab_name }) => {
+						try {
+							switch (this.downloadAs) {
+								case 'divination-cards-sample': {
+									const badge = this.stashtabs_badges.find(t => t.id === id)!;
+									const sample = await this.#loadSingleTabContent('sample', id, league, (_sid, _lg) => this.stashLoader.sampleFromBadge(badge, league), force);
+									this.dispatchEvent(new SampleFromStashtabEvent(stashtab_name, sample, league));
+									break;
+								}
+								case 'general-tab': {
+									const badge = this.stashtabs_badges.find(t => t.id === id)!;
+									const stashtab = await this.#loadSingleTabContent('general-tab', id, league, (_sid, _lg) => this.stashLoader.tabFromBadge(badge, league), force);
+									if (stashtab) this.#setCachedTab(stashtab.id, stashtab);
+									this.dispatchEvent(new StashtabFetchedEvent(stashtab, this.league));
+									break;
+								}
+							}
+
+							// Update progress after each tab loads
+							loadedCount++;
+							this.bulkProgress = { loaded: loadedCount, total: totalToLoad, name: stashtab_name };
+						} catch (err) {
+							if (!isStashTabError(err)) {
+								throw err;
+							}
+							const stashtab_badge = this.stashtabs_badges.find(stash => stash.id === id);
+							if (stashtab_badge) {
+								this.errors = [
+									...this.errors,
+									{
+										noItemsTab: stashtab_badge,
+										message: err.message,
+									},
+								];
+							}
 						}
-						case 'general-tab': {
-							const badge = this.stashtabs_badges.find(t => t.id === id)!;
-							const stashtab = await this.#loadSingleTabContent('general-tab', id, league, (_sid, _lg) => this.stashLoader.tabFromBadge(badge, league), force);
-							if (stashtab) this.tabsCache.set(stashtab.id, stashtab);
-							this.dispatchEvent(new StashtabFetchedEvent(stashtab, this.league));
-							break;
-						}
-					}
-				} catch (err) {
-					if (!isStashTabError(err)) {
-						throw err;
-					}
-					const stashtab_badge = this.stashtabs_badges.find(stash => stash.id === id);
-					if (stashtab_badge) {
-						this.errors = [
-							...this.errors,
-							{
-								noItemsTab: stashtab_badge,
-								message: err.message,
-							},
-						];
-					}
-				}
+					})
+				);
+				// Sleep 2s between batches to avoid rate limits
+				await sleepSecs(2);
 			}
 		} finally {
 			this.fetchingStashTab = false;
 			this.msg = '';
 			this.bulkProgress = null;
+
 		}
 	}
 
@@ -673,8 +611,8 @@ export class StashesViewElement extends LitElement {
 			? Array.from(this.selected_tabs.values()).map(v => v.id)
 			: this.stashtabs_badges.map(b => b.id);
 		const cachedTabs: Array<TabWithItems> = selected
-			.map(id => this.tabsCache.get(id))
-			.filter((t): t is TabWithItems => !!t);
+			.map(id => this.#getCachedTab(id))
+			.filter((t): t is TabWithItems => t !== null);
 		const allCached = cachedTabs.length === selected.length;
 		// legacy refs shape no longer used; we capture from cache exclusively
 		try {
@@ -683,20 +621,20 @@ export class StashesViewElement extends LitElement {
 					if (this.tabsCache.has(id)) continue;
 					const badge = this.stashtabs_badges.find(t => t.id === id)!;
 					const loaded = await this.#loadSingleTabContent('general-tab', id, this.league, (_sid, _lg) => this.stashLoader.tabFromBadge(badge, this.league), true);
-					if (loaded) this.tabsCache.set(loaded.id, loaded);
+					if (loaded) this.#setCachedTab(loaded.id, loaded);
 				}
 			}
 			const finalTabs: Array<TabWithItems> = selected
-				.map(id => this.tabsCache.get(id))
-				.filter((t): t is TabWithItems => !!t);
+				.map(id => this.#getCachedTab(id))
+				.filter((t): t is TabWithItems => t !== null);
 			await (this.stashLoader as any).wealthSnapshotCached(this.league, finalTabs);
 			this.msg = 'Snapshot captured';
-			toast('success', 'Snapshot captured');
+			this.#toast('success', 'Snapshot captured');
 			await this.#loadSnapshots();
 		} catch (err) {
 			const msg = this.#errorMessage(err);
 			this.msg = msg;
-			toast('danger', msg);
+			this.#toast('danger', msg);
 			const secs = this.#parseRetryAfterSeconds(msg);
 			if (secs && secs > 0) {
 				setTimeout(() => {
@@ -705,6 +643,56 @@ export class StashesViewElement extends LitElement {
 			}
 		} finally {
 			this.capturingSnapshot = false;
+		}
+	}
+
+	async #clearAllCache(): Promise<void> {
+		// Confirm with user before clearing
+		const confirmed = confirm('Are you sure you want to clear all cached tabs and snapshot history? This cannot be undone.');
+		if (!confirmed) return;
+
+		try {
+			// 1. Reset all loading states (fixes "stuck" issues)
+			this.fetchingStashTab = false;
+			this.bulkLoading = false;
+			this.bulkProgress = null;
+			this.msg = '';
+
+			// 2. Clear tabs cache (assign new Map for reactivity)
+			this.tabsCache = new Map();
+
+			// 3. Reset UI State (New User Experience)
+			this.selected_tabs = new Map();
+			this.opened_tab = null;
+			this.chartMode = 'chaos';
+			this.chartRange = 'all';
+			this.showWealth = false;
+			this.snapshots = [];
+			this.dispatchEvent(new SelectedTabsChangeEvent(this.selected_tabs));
+
+			// 4. Clear snapshots from storage (graceful fallback)
+			if (this.stashLoader) {
+				try {
+					await (this.stashLoader as any).clearSnapshots(this.league);
+				} catch (e) {
+					console.warn('Backend does not support clearing snapshots history', e);
+				}
+			}
+
+			// 5. Reload snapshots to update UI (should be empty)
+			try {
+				await this.#loadSnapshots();
+			} catch (e) {
+				console.warn('Failed to reload snapshots', e);
+			}
+
+			this.#toast('success', 'Cache and history cleared');
+			this.msg = 'Cache and history cleared';
+			this.requestUpdate();
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : 'Failed to clear cache';
+			this.#toast('danger', msg);
+			this.msg = msg;
 		}
 	}
 
@@ -722,92 +710,208 @@ export class StashesViewElement extends LitElement {
 			// toast('success', 'Snapshots refreshed'); // redundant
 		} catch (err) {
 			this.msg = this.#errorMessage(err);
-			toast('danger', this.msg);
+			this.#toast('danger', this.msg);
 		}
 	}
 
-	#renderSnapshotStats() {
-		if (this.snapshots.length < 2) return nothing;
+	#renderWealthDashboard() {
+		if (this.snapshots.length === 0) return nothing;
 
-		const current = this.snapshots[0];
-		const previous = this.snapshots[1];
+		const latest = this.snapshots[0];
+		const prev = this.snapshots[1];
+		const chaos = Math.round(latest.total_chaos);
+		const chaosDiff = prev ? Math.round(latest.total_chaos - prev.total_chaos) : 0;
+		const chaosTrend = chaosDiff > 0 ? 'trend-up' : chaosDiff < 0 ? 'trend-down' : 'trend-neutral';
+		const chaosSign = chaosDiff > 0 ? '+' : '';
+		const trendIcon = chaosDiff > 0 ? 'arrow-up-short' : chaosDiff < 0 ? 'arrow-down-short' : 'dash';
 
-		const start = new Date(previous.timestamp * 1000);
-		const end = new Date(current.timestamp * 1000);
-		const durationMs = end.getTime() - start.getTime();
-		const durationHrs = durationMs / (1000 * 60 * 60);
+		// Stats calculations
+		let rate = 0;
+		let durationStr = '0m';
+		let timeRange = '';
+		let net = 0;
 
-		const revenue = current.total_chaos;
-		const cost = previous.total_chaos;
-		const net = revenue - cost;
-		const rate = durationHrs > 0 ? net / durationHrs : 0;
+		if (prev) {
+			const start = new Date(prev.timestamp * 1000);
+			const end = new Date(latest.timestamp * 1000);
+			const durationMs = end.getTime() - start.getTime();
+			const durationHrs = durationMs / (1000 * 60 * 60);
 
-		const formatTime = (d: Date) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-		const formatDuration = (ms: number) => {
-			const h = Math.floor(ms / (1000 * 60 * 60));
-			const m = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
-			return `${h}h ${m}m`;
-		};
+			net = latest.total_chaos - prev.total_chaos;
+			rate = durationHrs > 0 ? net / durationHrs : 0;
+
+			const h = Math.floor(durationMs / (1000 * 60 * 60));
+			const m = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
+			durationStr = `${h}h ${m}m`;
+
+			timeRange = `${start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+		}
 
 		return html`
-            <div class="stats-card">
-                <div class="stats-header">
-                    <div class="stats-title">Snapshot Statistics</div>
-                    <div class="stats-rate ${rate >= 0 ? 'positive' : 'negative'}">
-                        ${rate >= 0 ? '+' : ''}${Math.round(rate)}c/hr
+            <section class="wealth-history">
+                <div class="metrics-grid">
+                    <!-- Total Chaos -->
+                    <div class="metric-card">
+                        <div class="metric-label"><sl-icon name="currency-bitcoin"></sl-icon> Total Chaos</div>
+                        <div class="metric-value">${chaos.toLocaleString()}</div>
+                        <div class="metric-sub ${chaosTrend}">
+                            <sl-icon name="${trendIcon}"></sl-icon>
+                            ${prev ? html`${chaosSign}${chaosDiff.toLocaleString()} vs last` : 'First snapshot'}
+                        </div>
+                    </div>
+
+                    <!-- Net / Rate -->
+                    <div class="metric-card">
+                        <div class="metric-label"><sl-icon name="graph-up-arrow"></sl-icon> Performance</div>
+                        <div class="metric-value ${net >= 0 ? 'positive' : 'negative'}">
+                            ${net >= 0 ? '+' : ''}${formatChaosAmount(net)}
+                        </div>
+                        <div class="metric-sub">
+                            ${Math.round(rate)} c/hr
+                        </div>
+                    </div>
+
+                    <!-- Session -->
+                    <div class="metric-card">
+                        <div class="metric-label"><sl-icon name="stopwatch"></sl-icon> Session</div>
+                        <div class="metric-value">${durationStr}</div>
+                        <div class="metric-sub">${timeRange || 'Just started'}</div>
+                    </div>
+
+                    <!-- Snapshots -->
+                    <div class="metric-card">
+                        <div class="metric-label"><sl-icon name="clock-history"></sl-icon> Snapshots</div>
+                        <div class="metric-value">${this.snapshots.length}</div>
+                        <div class="metric-sub">Recorded</div>
                     </div>
                 </div>
-                <div class="stats-grid">
-                    <div class="stat-col">
-                        <div class="stat-row">
-                            <span class="stat-label">Start</span>
-                            <span class="stat-val">${formatTime(start)}</span>
+
+                ${this.#renderTopMoversStrip(latest, prev)}
+
+                <div class="charts">
+                    <div class="chart-container">
+                        <div class="chart-header">
+                            <div class="chart-title">Wealth Trend</div>
+                            <div class="chart-controls" style="display:flex;gap:0.5rem;">
+                                <sl-radio-group size="small" value=${this.chartMode} @sl-change=${(e: any) => this.chartMode = e.target.value}>
+                                    <sl-radio-button value="chaos">Chaos</sl-radio-button>
+                                    <sl-radio-button value="divine">Divine</sl-radio-button>
+                                </sl-radio-group>
+                                <sl-radio-group size="small" value=${this.chartRange} @sl-change=${(e: any) => this.chartRange = e.target.value}>
+                                    <sl-radio-button value="all">All</sl-radio-button>
+                                    <sl-radio-button value="recent">Recent</sl-radio-button>
+                                </sl-radio-group>
+                            </div>
                         </div>
-                        <div class="stat-row">
-                            <span class="stat-label">End</span>
-                            <span class="stat-val">${formatTime(end)}</span>
-                        </div>
-                        <div class="stat-row">
-                            <span class="stat-label">Duration</span>
-                            <span class="stat-val">${formatDuration(durationMs)}</span>
-                        </div>
+                        <canvas 
+                            id="wealth-line"
+                            @mousemove=${this.#onChartMouseMove}
+                            @mouseleave=${this.#onChartMouseLeave}
+                        ></canvas>
+                        ${this.hoveredSnapshot ? html`
+                            <div 
+                                class="chart-tooltip"
+                                style="left: ${this.hoveredSnapshot.x}px; top: ${this.hoveredSnapshot.y - 10}px; transform: translate(-50%, -100%);"
+                            >
+                                <div class="tooltip-date">${new Date(this.hoveredSnapshot.snapshot.timestamp * 1000).toLocaleString()}</div>
+                                <div class="tooltip-row">
+                                    <span class="tooltip-label">Chaos:</span>
+                                    <span class="tooltip-val">${Math.round(this.hoveredSnapshot.snapshot.total_chaos).toLocaleString()}</span>
+                                </div>
+                                ${this.hoveredSnapshot.snapshot.total_divines ? html`
+                                <div class="tooltip-row">
+                                    <span class="tooltip-label">Divines:</span>
+                                    <span class="tooltip-val">${this.hoveredSnapshot.snapshot.total_divines.toFixed(2)}</span>
+                                </div>` : nothing}
+                            </div>
+                        ` : nothing}
                     </div>
-                    <div class="stat-col">
-                        <div class="stat-row">
-                            <span class="stat-label">Revenue</span>
-                            <span class="stat-val">${formatChaosAmount(revenue)}</span>
-                        </div>
-                        <div class="stat-row">
-                            <span class="stat-label">Cost</span>
-                            <span class="stat-val">${formatChaosAmount(cost)}</span>
-                        </div>
-                        <div class="stat-row">
-                            <span class="stat-label">Net</span>
-                            <span class="stat-val ${net >= 0 ? 'positive' : 'negative'}">
-                                ${net >= 0 ? '+' : ''}${formatChaosAmount(net)}
-                            </span>
-                        </div>
+                    <div class="chart-container">
+                         <div class="chart-header">
+                            <div class="chart-title">Category Breakdown</div>
+                         </div>
+                        <canvas id="wealth-bars"></canvas>
                     </div>
                 </div>
+                
+                <div class="category-list">
+                    ${this.#renderCategoryList(latest)}
+                </div>
+            </section>
+		`;
+	}
+
+	#renderTopMoversStrip(current: any, previous: any) {
+		if (!previous) return nothing;
+
+		const changes = [];
+		const curCats = current.by_category || {};
+		const prevCats = previous.by_category || {};
+		const allKeys = new Set([...Object.keys(curCats), ...Object.keys(prevCats)]);
+
+		for (const k of allKeys) {
+			const c = curCats[k]?.chaos || 0;
+			const p = prevCats[k]?.chaos || 0;
+			const diff = c - p;
+			if (Math.abs(diff) > 1) {
+				changes.push({ name: k, diff });
+			}
+		}
+		changes.sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
+		const top5 = changes.slice(0, 5);
+
+		if (!top5.length) return nothing;
+
+		return html`
+            <div class="movers-strip">
+                <div class="movers-label">Top Movers</div>
+                ${top5.map(c => html`
+                    <div class="mover-item">
+                        <span class="mover-name">${c.name}</span>
+                        <span class="mover-val" style="color:${c.diff > 0 ? 'var(--sl-color-success-600)' : 'var(--sl-color-danger-600)'}">
+                            ${c.diff > 0 ? '+' : ''}${Math.round(c.diff)}c
+                        </span>
+                    </div>
+                `)}
             </div>
         `;
 	}
 
-	#renderTrendIcon(snapshots: any[]) {
-		if (snapshots.length < 2) return html`<sl-icon name="dash" class="trend-neutral"></sl-icon>`;
-		const current = snapshots[0].total_chaos;
-		const previous = snapshots[1].total_chaos;
-		if (current > previous) return html`<sl-icon name="arrow-up-short" class="trend-up"></sl-icon>`;
-		if (current < previous) return html`<sl-icon name="arrow-down-short" class="trend-down"></sl-icon>`;
-		return html`<sl-icon name="dash" class="trend-neutral"></sl-icon>`;
+	#renderCategoryList(latest: any) {
+		const total = latest.total_chaos || 1;
+		const entries = Object.entries(latest.by_category || {}).map(([k, v]) => ({ name: k, chaos: (v as any).chaos || 0 }));
+		entries.sort((a, b) => b.chaos - a.chaos);
+
+		const getIcon = (name: string) => {
+			if (name.includes('currency')) return 'coin';
+			if (name.includes('card')) return 'postcard';
+			if (name.includes('essence')) return 'droplet';
+			if (name.includes('fragment')) return 'puzzle';
+			if (name.includes('map')) return 'map';
+			return 'box';
+		};
+
+		return html`${entries.map(e => {
+			const pct = (e.chaos / total) * 100;
+			return html`
+				<div class="category-card">
+					<div class="category-icon">
+						<sl-icon name="${getIcon(e.name)}"></sl-icon>
+					</div>
+					<div class="category-details">
+						<div class="category-header">
+							<span class="cat-name">${e.name}</span>
+							<span class="cat-val">${Math.round(e.chaos).toLocaleString()} <small class="category-pct">(${pct.toFixed(1)}%)</small></span>
+						</div>
+						<div class="progress-bar">
+							<div class="progress-fill" style="width: ${pct}%"></div>
+						</div>
+					</div>
+				</div>`;
+		})}`;
 	}
 
-	#calculateChange(current: number, previous: number): string {
-		const diff = current - previous;
-		const percentage = previous !== 0 ? (diff / previous) * 100 : 0;
-		// const sign = diff >= 0 ? '+' : '';
-		return `${percentage.toFixed(1)}%`;
-	}
+
 
 	#errorMessage(err: unknown): string {
 		if (err && typeof err === 'object') {
@@ -831,8 +935,20 @@ export class StashesViewElement extends LitElement {
 		if (!this.showWealth || !this.snapshots.length) return;
 		const line = this.renderRoot?.querySelector<HTMLCanvasElement>('#wealth-line');
 		const bars = this.renderRoot?.querySelector<HTMLCanvasElement>('#wealth-bars');
+
+		let data = [...this.snapshots];
+		// Filter by range
+		if (this.chartRange === 'recent') {
+			data = data.slice(0, 20); // Last 20 snapshots
+		}
+
 		if (line) {
-			const values = this.snapshots.map(s => s.total_chaos || 0);
+			const values = data.map(s => {
+				if (this.chartMode === 'divine') {
+					return s.total_divines || 0;
+				}
+				return s.total_chaos || 0;
+			});
 			this.#drawLine(line, values);
 		}
 		if (bars) {
@@ -862,18 +978,35 @@ export class StashesViewElement extends LitElement {
 		const max = Math.max(...values);
 		const min = Math.min(...values);
 		const range = max - min || 1;
-		// Add 10% padding top and bottom
-		const yMax = max + (range * 0.1);
-		const yMin = Math.max(0, min - (range * 0.1));
+		// Add 15% padding top and bottom
+		const yMax = max + (range * 0.15);
+		const yMin = Math.max(0, min - (range * 0.15));
 		const yRange = yMax - yMin;
 
 		const n = values.length;
 		const xStep = w / Math.max(1, n - 1);
 
+		// Draw Grid
+		ctx.strokeStyle = 'rgba(0,0,0,0.05)';
+		ctx.lineWidth = 1;
+		ctx.beginPath();
+		// Horizontal grid lines (5 lines)
+		for (let i = 0; i <= 4; i++) {
+			const y = h - (i / 4) * h;
+			ctx.moveTo(0, y);
+			ctx.lineTo(w, y);
+		}
+		ctx.stroke();
+
 		// Gradient fill
 		const gradient = ctx.createLinearGradient(0, 0, 0, h);
-		gradient.addColorStop(0, 'rgba(99, 102, 241, 0.2)'); // Primary color low opacity
-		gradient.addColorStop(1, 'rgba(99, 102, 241, 0)');
+		if (this.chartMode === 'divine') {
+			gradient.addColorStop(0, 'rgba(234, 179, 8, 0.2)'); // Yellow/Gold
+			gradient.addColorStop(1, 'rgba(234, 179, 8, 0)');
+		} else {
+			gradient.addColorStop(0, 'rgba(99, 102, 241, 0.2)'); // Indigo
+			gradient.addColorStop(1, 'rgba(99, 102, 241, 0)');
+		}
 
 		ctx.beginPath();
 		// Start from bottom left
@@ -892,7 +1025,9 @@ export class StashesViewElement extends LitElement {
 		ctx.fill();
 
 		// Stroke line
-		ctx.strokeStyle = getComputedStyle(this).getPropertyValue('--sl-color-primary-600') || '#4f46e5';
+		ctx.strokeStyle = this.chartMode === 'divine'
+			? (getComputedStyle(this).getPropertyValue('--sl-color-warning-500') || '#eab308')
+			: (getComputedStyle(this).getPropertyValue('--sl-color-primary-600') || '#4f46e5');
 		ctx.lineWidth = 3;
 		ctx.lineCap = 'round';
 		ctx.lineJoin = 'round';
@@ -921,7 +1056,7 @@ export class StashesViewElement extends LitElement {
 			// Draw active point highlight
 			if (i === activeIndex) {
 				ctx.save();
-				ctx.strokeStyle = 'rgba(99, 102, 241, 0.5)';
+				ctx.strokeStyle = this.chartMode === 'divine' ? 'rgba(234, 179, 8, 0.5)' : 'rgba(99, 102, 241, 0.5)';
 				ctx.lineWidth = 10;
 				ctx.beginPath();
 				ctx.arc(x, y, 8, 0, Math.PI * 2);
@@ -962,15 +1097,15 @@ export class StashesViewElement extends LitElement {
 		const snapshot = this.snapshots[snapshotIndex];
 
 		// Calculate Y position for tooltip
-		const values = this.snapshots.map(s => s.total_chaos || 0);
+		const values = this.snapshots.map(s => this.chartMode === 'divine' ? (s.total_divines || 0) : (s.total_chaos || 0));
 		const max = Math.max(...values);
 		const min = Math.min(...values);
 		const range = max - min || 1;
-		const yMax = max + (range * 0.1);
-		const yMin = Math.max(0, min - (range * 0.1));
+		const yMax = max + (range * 0.15);
+		const yMin = Math.max(0, min - (range * 0.15));
 		const yRange = yMax - yMin;
 
-		const val = snapshot.total_chaos || 0;
+		const val = this.chartMode === 'divine' ? (snapshot.total_divines || 0) : (snapshot.total_chaos || 0);
 		const y = 300 - ((val - yMin) / yRange) * 300; // 300 is fixed height
 
 		this.hoveredSnapshot = {
@@ -1066,7 +1201,7 @@ export class StashesViewElement extends LitElement {
 		}
 
 		if (!force && kind === 'general-tab') {
-			const cached = this.tabsCache.get(id);
+			const cached = this.#getCachedTab(id);
 			if (cached) {
 				return cached as unknown as T;
 			}
@@ -1078,7 +1213,14 @@ export class StashesViewElement extends LitElement {
 			this.stashLoadsAvailable++;
 		}, SECS_300);
 		try {
-			const singleTabContent = await loadFunction(id, league);
+			// Add 30s timeout to prevent hanging
+			const timeoutPromise = new Promise<never>((_, reject) =>
+				setTimeout(() => reject(new Error('Request timed out')), 30000)
+			);
+			const singleTabContent = await Promise.race([
+				loadFunction(id, league),
+				timeoutPromise
+			]);
 			return singleTabContent;
 		} finally {
 			// run again go clear wait-messages when time comes

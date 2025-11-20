@@ -1,20 +1,20 @@
 import { invoke } from '@tauri-apps/api/core';
 import {
-	DivinationCardsSample,
-	League,
-	NameAmount,
-	TradeLeague,
-	GoogleIdentity,
-	TablePreferences,
-	Column,
+    DivinationCardsSample,
+    League,
+    NameAmount,
+    TradeLeague,
+    GoogleIdentity,
+    TablePreferences,
+    Column,
 } from '@divicards/shared/types.js';
 import { NoItemsTab, TabWithItems } from 'poe-custom-elements/types.js';
 
 export type SampleData = string | NameAmount[] | DivinationCardsSample;
 export type ValueRange = {
-	majorDimension: 'ROWS' | 'COLUMNS';
-	range: string;
-	values: Array<Array<string | number | null | undefined>>;
+    majorDimension: 'ROWS' | 'COLUMNS';
+    range: string;
+    values: Array<Array<string | number | null | undefined>>;
 };
 type Preferences = Omit<TablePreferences, 'columns'> & { columns: Column[] };
 
@@ -23,63 +23,64 @@ export interface Commands {
     poe_has_token: () => boolean;
     read_batch(args: { spreadsheetId: string; ranges: string[] }): unknown;
     read_sheet(args: { spreadsheetId: string; range: string }): ValueRange;
-	new_sheet_with_sample: (args: {
-		spreadsheetId: string;
-		title: string;
-		sample: DivinationCardsSample;
-		league: League;
-		preferences: Preferences;
-	}) => string;
+    new_sheet_with_sample: (args: {
+        spreadsheetId: string;
+        title: string;
+        sample: DivinationCardsSample;
+        league: League;
+        preferences: Preferences;
+    }) => string;
     google_logout: () => void;
     google_identity: () => GoogleIdentity;
     google_has_token: () => boolean;
     google_auth: () => void;
-	old_google_auth: () => void;
-	sample: (args: { data: SampleData; league: TradeLeague | null }) => DivinationCardsSample;
-	merge: (args: { samples: DivinationCardsSample[] }) => DivinationCardsSample;
-	open_url: (args: { url: string }) => void;
-	poe_auth: () => string;
-	poe_logout: () => void;
-	stashes: (args: { league: League }) => { stashes: NoItemsTab[] };
-	sample_into_csv: (args: { sample: DivinationCardsSample; preferences: Preferences }) => string;
-	sample_from_tab: (args: { league: League; stashId: string; subStashId?: string }) => DivinationCardsSample;
-	tab_with_items: (args: { league: League; stashId: string; subStashId?: string }) => TabWithItems;
-	extract_cards: (args: { tab: TabWithItems; league: League }) => DivinationCardsSample;
-	map_prices: (args: { league: League }) => Array<{ name: string; tier: number; chaos_value: number | null }>;
-	currency_prices: (args: { league: League }) => Array<{ name: string; chaos_value: number | null }>;
-		fragment_prices: (args: { league: League }) => Array<{ name: string; chaos_value: number | null }>;
-		essence_prices: (args: { league: League }) => Array<{ name: string; variant: string | null; chaos_value: number | null }>;
-		gem_prices: (args: { league: League }) => Array<{ name: string; level: number; quality: number; chaos_value: number | null }>;
-		oil_prices: (args: { league: League }) => Array<{ name: string; chaos_value: number | null }>;
-		incubator_prices: (args: { league: League }) => Array<{ name: string; chaos_value: number | null }>;
-		fossil_prices: (args: { league: League }) => Array<{ name: string; chaos_value: number | null }>;
-		resonator_prices: (args: { league: League }) => Array<{ name: string; chaos_value: number | null }>;
-		delirium_orb_prices: (args: { league: League }) => Array<{ name: string; chaos_value: number | null }>;
-        vial_prices: (args: { league: League }) => Array<{ name: string; chaos_value: number | null }>;
-        divination_card_prices: (args: { league: League }) => Array<{ name: string; chaos_value: number | null }>;
-        ninja_dense_overviews_raw: (args: { league: League }) => Record<string, unknown>;
-        set_gem_prices_cache_ttl_minutes: (args: { minutes: number }) => void;
-        wealth_snapshot: (args: { league: League; tabs: Array<{ stash_id: string; substash_id?: string | null }> }) => {
-            timestamp: number;
-            league: string;
-            total_chaos: number;
-            total_divines: number | null;
-            by_category: Record<string, { chaos: number }>;
-        };
-        list_snapshots: (args: { league: League; limit?: number }) => Array<{
-            timestamp: number;
-            league: string;
-            total_chaos: number;
-            total_divines: number | null;
-            by_category: Record<string, { chaos: number }>;
-        }>;
-        wealth_snapshot_cached: (args: { league: League; tabs: Array<TabWithItems> }) => {
-            timestamp: number;
-            league: string;
-            total_chaos: number;
-            total_divines: number | null;
-            by_category: Record<string, { chaos: number }>;
-        };
+    old_google_auth: () => void;
+    sample: (args: { data: SampleData; league: TradeLeague | null }) => DivinationCardsSample;
+    merge: (args: { samples: DivinationCardsSample[] }) => DivinationCardsSample;
+    open_url: (args: { url: string }) => void;
+    poe_auth: () => string;
+    poe_logout: () => void;
+    stashes: (args: { league: League }) => { stashes: NoItemsTab[] };
+    sample_into_csv: (args: { sample: DivinationCardsSample; preferences: Preferences }) => string;
+    sample_from_tab: (args: { league: League; stashId: string; subStashId?: string }) => DivinationCardsSample;
+    tab_with_items: (args: { league: League; stashId: string; subStashId?: string }) => TabWithItems;
+    extract_cards: (args: { tab: TabWithItems; league: League }) => DivinationCardsSample;
+    map_prices: (args: { league: League }) => Array<{ name: string; tier: number; chaos_value: number | null }>;
+    currency_prices: (args: { league: League }) => Array<{ name: string; chaos_value: number | null }>;
+    fragment_prices: (args: { league: League }) => Array<{ name: string; chaos_value: number | null }>;
+    essence_prices: (args: { league: League }) => Array<{ name: string; variant: string | null; chaos_value: number | null }>;
+    gem_prices: (args: { league: League }) => Array<{ name: string; level: number; quality: number; chaos_value: number | null }>;
+    oil_prices: (args: { league: League }) => Array<{ name: string; chaos_value: number | null }>;
+    incubator_prices: (args: { league: League }) => Array<{ name: string; chaos_value: number | null }>;
+    fossil_prices: (args: { league: League }) => Array<{ name: string; chaos_value: number | null }>;
+    resonator_prices: (args: { league: League }) => Array<{ name: string; chaos_value: number | null }>;
+    delirium_orb_prices: (args: { league: League }) => Array<{ name: string; chaos_value: number | null }>;
+    vial_prices: (args: { league: League }) => Array<{ name: string; chaos_value: number | null }>;
+    divination_card_prices: (args: { league: League }) => Array<{ name: string; chaos_value: number | null }>;
+    ninja_dense_overviews_raw: (args: { league: League }) => Record<string, unknown>;
+    set_gem_prices_cache_ttl_minutes: (args: { minutes: number }) => void;
+    wealth_snapshot: (args: { league: League; tabs: Array<{ stash_id: string; substash_id?: string | null }> }) => {
+        timestamp: number;
+        league: string;
+        total_chaos: number;
+        total_divines: number | null;
+        by_category: Record<string, { chaos: number }>;
+    };
+    list_snapshots: (args: { league: League; limit?: number }) => Array<{
+        timestamp: number;
+        league: string;
+        total_chaos: number;
+        total_divines: number | null;
+        by_category: Record<string, { chaos: number }>;
+    }>;
+    wealth_snapshot_cached: (args: { league: League; tabs: Array<TabWithItems> }) => {
+        timestamp: number;
+        league: string;
+        total_chaos: number;
+        total_divines: number | null;
+        by_category: Record<string, { chaos: number }>;
+    };
+    clear_snapshots: (args: { league: League }) => void;
 }
 
 const { format } = new Intl.NumberFormat();
@@ -395,6 +396,15 @@ async function mockInvoke(name: string, arg: Record<string, unknown>): Promise<u
             stmt.free();
             await persistWebDb();
             return snapshot;
+        }
+        case 'clear_snapshots': {
+            const league = (arg?.league as string) ?? 'Standard';
+            const db = await getWebDb();
+            const stmt = db.prepare('DELETE FROM snapshots WHERE league = ?');
+            stmt.run([league]);
+            stmt.free();
+            await persistWebDb();
+            return;
         }
         case 'google_logout':
             return;
