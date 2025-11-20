@@ -112,6 +112,7 @@ pub struct GemPrice {
     pub name: String,
     pub level: u8,
     pub quality: u8,
+    pub corrupt: bool,
     pub chaos_value: Option<f32>,
 }
 
@@ -393,9 +394,10 @@ pub async fn gem_prices(league: TradeLeague) -> Result<Vec<GemPrice>, Error> {
         let name = v.get("name").and_then(Value::as_str).unwrap_or("").to_string();
         let level = v.get("gemLevel").and_then(Value::as_u64).map(|n| n as u8).unwrap_or(0);
         let quality = v.get("gemQuality").and_then(Value::as_u64).map(|n| n as u8).unwrap_or(0);
+        let corrupt = v.get("corrupted").and_then(Value::as_bool).unwrap_or(false);
         let chaos_value = v.get("chaosValue").and_then(Value::as_f64).map(|n| n as f32);
         if !name.is_empty() {
-            out.push(GemPrice { name, level, quality, chaos_value });
+            out.push(GemPrice { name, level, quality, corrupt, chaos_value });
         }
     }
     {

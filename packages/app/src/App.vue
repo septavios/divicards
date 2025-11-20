@@ -456,9 +456,7 @@ const handleDropZoneDrop = (event: DragEvent) => {
 				<sl-button @click="sampleStore.deleteAllFiles">Remove samples</sl-button>
 			</div>
 		</div>
-        <div v-if="aggregatedTab">
-            <poe-general-priced-list aggregate :league="league" :stashLoader="stashLoader" :tab="aggregatedTab as any"></poe-general-priced-list>
-        </div>
+        
 		<Transition>
 			<div ref="filesTemplateRef" class="samples" v-show="!bulkMode && sampleStore.sampleCards.length">
 				<e-sample-card

@@ -11,7 +11,7 @@ export class PoeGemStashListElement extends LitElement {
   @property({ type: Object }) tab!: TabWithItems;
   @property() league: string = 'Standard';
   @property({ type: Object }) prices: Map<string, number> = new Map();
-  @property() sortBy: 'name' | 'level' | 'quality' | 'tab' | 'qty' | 'price' | 'total' = 'name';
+  @property() sortBy: 'name' | 'level' | 'quality' | 'corrupt' | 'tab' | 'qty' | 'price' | 'total' = 'name';
   @property() sortDir: 'asc' | 'desc' = 'asc';
   @property({ attribute: false }) stashLoader!: IStashLoader;
   @property() errorMessage: string | null = null;
@@ -37,7 +37,7 @@ export class PoeGemStashListElement extends LitElement {
       const rows = await this.stashLoader.gemPrices(this.league as any);
       const next = new Map<string, number>();
       rows.forEach((r: { name: string; level: number; quality: number; chaos_value: number | null }) => {
-        const key = gemKey(r.name, r.level ?? 0, r.quality ?? 0);
+        const key = gemPriceKey(r.name, r.level ?? 0, r.quality ?? 0);
         if (typeof r.chaos_value === 'number') next.set(key, r.chaos_value);
       });
       this.prices = next;
@@ -55,12 +55,12 @@ export class PoeGemStashListElement extends LitElement {
   protected render(): TemplateResult {
     const items = this.tab?.items ?? [];
     const tabIndex = this.tab?.index ?? 0;
-    const groups = groupByNameLevelQuality(items);
+    const groups = groupByNameLevelQualityCorrupt(items);
     const rows = Array.from(groups.values()).map(g => {
-      const key = gemKey(g.name, g.level, g.quality);
-      const price = this.prices.get(key) ?? 0;
+      const priceKey = gemPriceKey(g.name, g.level, g.quality);
+      const price = this.prices.get(priceKey) ?? 0;
       const total = +(price * g.total).toFixed(1);
-      return { name: g.name, level: g.level, quality: g.quality, qty: g.total, tab: tabIndex, price, total, sample: g.sample };
+      return { name: g.name, level: g.level, quality: g.quality, corrupt: g.corrupt, qty: g.total, tab: tabIndex, price, total, sample: g.sample };
     });
     rows.sort((a, b) => {
       const mul = this.sortDir === 'asc' ? 1 : -1;
@@ -68,6 +68,7 @@ export class PoeGemStashListElement extends LitElement {
         case 'name': return a.name.localeCompare(b.name) * mul;
         case 'level': return (a.level - b.level) * mul;
         case 'quality': return (a.quality - b.quality) * mul;
+        case 'corrupt': return ((a.corrupt ? 1 : 0) - (b.corrupt ? 1 : 0)) * mul;
         case 'tab': return (a.tab - b.tab) * mul;
         case 'qty': return (a.qty - b.qty) * mul;
         case 'price': return (a.price - b.price) * mul;
@@ -80,7 +81,7 @@ export class PoeGemStashListElement extends LitElement {
         <sl-icon slot="icon" name="exclamation-octagon"></sl-icon>
         ${this.errorMessage}
       </sl-alert>` : null}
-      ${this.renderHeader(['Name', 'Level', 'Quality', 'Tab', 'Quantity', 'Price', 'Total'])}
+      ${this.renderHeader(['Name', 'Level', 'Quality', 'Corrupt', 'Tab', 'Quantity', 'Price', 'Total'])}
       ${rows.map(r => html`<div class="row">
         <div class="name">
           <poe-item .item=${normalizeItem(r.sample)}></poe-item>
@@ -88,6 +89,7 @@ export class PoeGemStashListElement extends LitElement {
         </div>
         <div class="quality">${r.level}</div>
         <div class="quality">${r.quality}</div>
+        <div class="corrupt">${r.corrupt ? 'yes' : 'no'}</div>
         <div>${r.tab}</div>
         <div class="qty">${r.qty}</div>
         <div>${r.price ? `${r.price.toFixed(0)}c` : '-'}</div>
@@ -98,7 +100,7 @@ export class PoeGemStashListElement extends LitElement {
 
   private renderHeader(cols: string[]): TemplateResult {
     const keys: Record<string, PoeGemStashListElement['sortBy']> = {
-      Name: 'name', Level: 'level', Quality: 'quality', Tab: 'tab', Quantity: 'qty', Price: 'price', Total: 'total'
+      Name: 'name', Level: 'level', Quality: 'quality', Corrupt: 'corrupt', Tab: 'tab', Quantity: 'qty', Price: 'price', Total: 'total'
     };
     return html`<div class="header">
       ${cols.map(c => html`<button class="th" @click=${() => this.onSort(keys[c])}>${c}${this.sortBy === keys[c] ? (this.sortDir === 'asc' ? ' ▲' : ' ▼') : ''}</button>`)}
@@ -119,12 +121,12 @@ export class PoeGemStashListElement extends LitElement {
     :host { display: block; width: var(--size, 569px); height: var(--size, 569px); }
     .list { width: 100%; height: 100%; padding: 8px; display: grid; grid-auto-rows: min-content; row-gap: 6px; overflow: auto; }
     sl-alert { position: sticky; top: 0; z-index: 1; }
-    .header, .row { display: grid; grid-template-columns: 1fr 60px 60px 50px 80px 80px 100px; align-items: center; column-gap: 12px; }
+    .header, .row { display: grid; grid-template-columns: 1fr 60px 60px 60px 50px 80px 80px 100px; align-items: center; column-gap: 12px; }
     .header { font-weight: 600; position: sticky; top: 0; background: var(--sl-color-gray-50); z-index: 1; padding: 6px 0; border-bottom: 1px solid var(--sl-color-gray-200); }
     .header .th { text-align: left; background: transparent; border: none; color: inherit; cursor: pointer; padding: 4px 0; }
     .name { display: flex; align-items: center; gap: 8px; }
     poe-item { --cell-size: 32px; --poe-item-size: 32px; --stack-size-font-size: 10px; }
-    .quality, .qty { text-align: right; }
+    .quality, .qty, .corrupt { text-align: right; }
     .row { border-bottom: 1px solid var(--sl-color-gray-200); padding: 6px 0; }
   `;
 }
@@ -139,9 +141,10 @@ function normalizeItem(item: PoeItem): PoeItem {
   return { ...item, w: 1, h: 1, x: 0, y: 0, identified: true } as PoeItem;
 }
 
-type GroupGem = { name: string; level: number; quality: number; total: number; sample: PoeItem };
+type GroupGem = { name: string; level: number; quality: number; corrupt: boolean; total: number; sample: PoeItem };
 
-function gemKey(name: string, level: number, quality: number): string { return `${name}__${level}__${quality}`; }
+function gemPriceKey(name: string, level: number, quality: number): string { return `${name}__${level}__${quality}`; }
+function gemGroupKey(name: string, level: number, quality: number, corrupt: boolean): string { return `${name}__${level}__${quality}__${corrupt ? 'c' : 'u'}`; }
 
 function getGemLevel(item: PoeItem): number {
   const p = item.properties || [];
@@ -173,19 +176,24 @@ function getGemQuality(item: PoeItem): number {
   return 0;
 }
 
-function groupByNameLevelQuality(items: PoeItem[]): Map<string, GroupGem> {
+function isCorrupted(item: PoeItem): boolean {
+  return Boolean((item as any).corrupted);
+}
+
+function groupByNameLevelQualityCorrupt(items: PoeItem[]): Map<string, GroupGem> {
   const map = new Map<string, GroupGem>();
   for (const it of items) {
     const name = it.typeLine || it.baseType || it.name;
     const level = getGemLevel(it);
     const quality = getGemQuality(it);
-    const key = gemKey(name, level, quality);
+    const corrupt = isCorrupted(it);
+    const key = gemGroupKey(name, level, quality, corrupt);
     const qty = it.stackSize ?? 1;
     const prev = map.get(key);
     if (prev) {
       prev.total += qty;
     } else {
-      map.set(key, { name, level, quality, total: qty, sample: it });
+      map.set(key, { name, level, quality, corrupt, total: qty, sample: it });
     }
   }
   return map;

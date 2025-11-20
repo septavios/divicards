@@ -9,11 +9,13 @@ import { type League } from '@divicards/shared/types.js';
 import { ACTIVE_LEAGUE } from '@divicards/shared/lib.js';
 import '@shoelace-style/shoelace/dist/components/input/input.js';
 import '@shoelace-style/shoelace/dist/components/button/button.js';
+import '@shoelace-style/shoelace/dist/components/button-group/button-group.js';
 import '@shoelace-style/shoelace/dist/components/radio-button/radio-button.js';
 import '@shoelace-style/shoelace/dist/components/radio-group/radio-group.js';
 import '@shoelace-style/shoelace/dist/components/spinner/spinner.js';
 import '@shoelace-style/shoelace/dist/components/alert/alert.js';
 import '@shoelace-style/shoelace/dist/components/icon/icon.js';
+import '@shoelace-style/shoelace/dist/components/tooltip/tooltip.js';
 import { isStashTabError } from '@divicards/shared/error.js';
 import type { ErrorLabel, SelectedStashtabs } from './types.js';
 import { styles } from './e-stashes-view.styles.js';
@@ -76,14 +78,17 @@ export class StashesViewElement extends LitElement {
 	@state() tabsCache: Map<string, CachedTab> = new Map();
 	private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 	@state() opened_tab: NoItemsTab | null = null;
-	@state() snapshots: Array<{ timestamp: number; league: string; total_chaos: number; total_divines: number | null; by_category: Record<string, { chaos: number }> }> = [];
+	@state() snapshots: Array<{ timestamp: number; league: string; total_chaos: number; total_divines: number | null; by_category: Record<string, { chaos: number }>; item_prices?: Record<string, number> }> = [];
 	/** Indicator whether cards was just extracted. */
 	@state() cardsJustExtracted = false;
 	@state() showWealth = false;
-	@state() hoveredSnapshot: { x: number; y: number; snapshot: any; index: number } | null = null;
+	@state() hoveredSnapshot: { x: number; y: number; snapshot: any; index: number; align: 'center' | 'left' | 'right' } | null = null;
 	@state() bulkProgress: { loaded: number; total: number; name: string } | null = null;
 	@state() chartMode: 'chaos' | 'divine' = 'chaos';
 	@state() chartRange: 'all' | 'recent' = 'all';
+	@state() showPriceChanges = false;
+	@state() priceChangeMode: 'item' | 'category' = 'category';
+	@state() priceChangesData: Array<any> = [];
 	private lastToastTime = 0;
 
 	private stashTabTask = new Task(this, {
@@ -239,7 +244,7 @@ export class StashesViewElement extends LitElement {
 			await this.#bulkLoadAllTabs();
 		});
 
-        
+
 		this.addEventListener('stashes__force-reload-selected', e => {
 			e.stopPropagation();
 			this.#onLoadItemsClicked();
@@ -304,7 +309,18 @@ export class StashesViewElement extends LitElement {
                                 Refresh
                             </sl-button>
                             ${this.snapshots.length ? html`
-                                <sl-button size="small" @click=${this.#toggleWealth} ?variant=${this.showWealth ? 'default' : 'neutral'}>
+                                <sl-button 
+                                    size="small" 
+                                    variant="danger"
+                                    @click=${this.#confirmClearHistory}
+                                    title="Clear all wealth history for current league"
+                                >
+                                    <sl-icon name="trash" slot="prefix"></sl-icon>
+                                    Clear All History
+                                </sl-button>
+                            ` : nothing}
+                            ${this.snapshots.length ? html`
+                                <sl-button size="small" @click=${this.#toggleWealth} variant=${this.showWealth ? 'default' : 'neutral'}>
                                     ${this.showWealth ? 'Hide History' : 'Show History'}
                                 </sl-button>
                             ` : nothing}
@@ -355,19 +371,18 @@ export class StashesViewElement extends LitElement {
 				: nothing}
 			</div>
             ${this.showWealth && this.snapshots.length ? this.#renderWealthDashboard() : nothing}
-			<e-tab-badge-group
-				.stashes=${this.stashtabs_badges}
-				.selected_tabs=${this.selected_tabs}
-				.multiselect=${this.multiselect}
-				.league=${this.league}
-				.errors=${this.errors}
-				.hoveredErrorTabId=${this.hoveredErrorTabId}
-				.downloadedStashTabs=${this.downloadedStashTabs}
-				.badgesDisabled=${this.stashLoadsAvailable === 0}
-				@e-tab-badge-group__click=${this.#handle_tab_badge_click}
-				@e-tab-badge-group__multiselect-change=${this.#change_multiselect}
-				@e-tab-badge-group__selected-tabs-change=${this.#handle_selected_tabs_change}
-			></e-tab-badge-group>
+                <e-tab-badge-group
+                	.stashes=${this.stashtabs_badges}
+                	.selected_tabs=${this.selected_tabs}
+                	.multiselect=${this.multiselect}
+                	.league=${this.league}
+                	.errors=${this.errors}
+                	.hoveredErrorTabId=${this.hoveredErrorTabId}
+                	.badgesDisabled=${this.stashLoadsAvailable === 0}
+                	@e-tab-badge-group__click=${this.#handle_tab_badge_click}
+                	@e-tab-badge-group__multiselect-change=${this.#change_multiselect}
+                	@e-tab-badge-group__selected-tabs-change=${this.#handle_selected_tabs_change}
+                ></e-tab-badge-group>
 			${this.opened_tab || (this.multiselect && this.selected_tabs.size > 0)
 				? (this.multiselect
 					? this.#renderAggregatedView()
@@ -643,7 +658,7 @@ export class StashesViewElement extends LitElement {
 		}
 	}
 
-    
+
 
 	async #loadSnapshots(): Promise<void> {
 		if (!this.stashLoader) return;
@@ -659,6 +674,156 @@ export class StashesViewElement extends LitElement {
 			this.msg = this.#errorMessage(err);
 			this.#toast('danger', this.msg);
 		}
+	}
+
+	async #confirmClearHistory() {
+		const count = this.snapshots.length;
+		const league = this.league;
+
+		const confirmed = await this.#showConfirmDialog(
+			'Clear All History?',
+			`This will permanently delete all ${count} wealth snapshot${count !== 1 ? 's' : ''} for league "${league}". This action cannot be undone.`,
+			'Clear All Data',
+			'danger'
+		);
+
+		if (confirmed) {
+			await this.#clearAllHistory();
+		}
+	}
+
+	#showConfirmDialog(
+		title: string,
+		message: string,
+		confirmLabel: string,
+		variant: 'danger' | 'warning' = 'danger'
+	): Promise<boolean> {
+		return new Promise((resolve) => {
+			const dialog = document.createElement('sl-dialog');
+			dialog.label = title;
+			dialog.innerHTML = `
+				<p style="margin: 0 0 1rem 0;">${message}</p>
+				<div slot="footer" style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+					<sl-button variant="default" class="cancel-btn">Cancel</sl-button>
+					<sl-button variant="${variant}" class="confirm-btn">${confirmLabel}</sl-button>
+				</div>
+			`;
+
+			document.body.appendChild(dialog);
+			dialog.show();
+
+			const cancelBtn = dialog.querySelector('.cancel-btn');
+			const confirmBtn = dialog.querySelector('.confirm-btn');
+
+			const cleanup = () => {
+				dialog.hide();
+				setTimeout(() => dialog.remove(), 300);
+			};
+
+			cancelBtn?.addEventListener('click', () => {
+				cleanup();
+				resolve(false);
+			});
+
+			confirmBtn?.addEventListener('click', () => {
+				cleanup();
+				resolve(true);
+			});
+
+			dialog.addEventListener('sl-request-close', (event) => {
+				if ((event as any).detail?.source === 'overlay') {
+					cleanup();
+					resolve(false);
+				}
+			});
+		});
+	}
+
+	async #clearAllHistory() {
+		if (!this.stashLoader) return;
+
+		try {
+			this.msg = 'Clearing all history...';
+			const deletedCount = await (this.stashLoader as any).deleteAllSnapshots(this.league);
+
+			// Clear local state
+			this.snapshots = [];
+			this.showWealth = false;
+
+			// Clear cache
+			await (this.stashLoader as any).clearSnapshotCache();
+
+			this.msg = '';
+			this.#toast('success', `Successfully deleted ${deletedCount} snapshot${deletedCount !== 1 ? 's' : ''}`);
+
+		} catch (err) {
+			const errorMsg = this.#errorMessage(err);
+			this.msg = errorMsg;
+			this.#toast('danger', `Failed to clear history: ${errorMsg}`);
+		}
+	}
+
+	#getTopCategories(snapshot: any): Array<{ name: string; value: number; percent: number }> {
+		const total = snapshot.total_chaos || 1;
+		const entries = Object.entries(snapshot.by_category || {})
+			.map(([name, data]: [string, any]) => ({
+				name: name.charAt(0).toUpperCase() + name.slice(1),
+				value: data.chaos || 0,
+				percent: ((data.chaos || 0) / total) * 100
+			}))
+			.sort((a, b) => b.value - a.value);
+		return entries.slice(0, 5);
+	}
+
+	#renderTooltip() {
+		if (!this.hoveredSnapshot) return nothing;
+
+		const { snapshot, index, x, y, align } = this.hoveredSnapshot;
+		const prev = this.snapshots[index + 1];
+		const diff = prev ? Math.round(snapshot.total_chaos - prev.total_chaos) : 0;
+		const ratio = snapshot.total_divines ? (snapshot.total_chaos / snapshot.total_divines).toFixed(0) : 0;
+
+		return html`
+			<div 
+				class="chart-tooltip"
+				style="left: ${x + (align === 'left' ? 12 : align === 'right' ? -12 : 0)}px; top: ${y - 12}px; transform: ${align === 'left' ? 'translate(0, -100%)' : align === 'right' ? 'translate(-100%, -100%)' : 'translate(-50%, -100%)'};"
+			>
+				<div class="tooltip-header">
+					<span class="tooltip-date">${new Date(snapshot.timestamp * 1000).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+					${diff !== 0 ? html`<span class="tooltip-change ${diff > 0 ? 'positive' : 'negative'}">${diff > 0 ? '+' : ''}${diff.toLocaleString()}c</span>` : nothing}
+				</div>
+				
+				<div class="tooltip-main-value">
+					<span class="value">${Math.round(snapshot.total_chaos).toLocaleString()}</span>
+					<span class="unit">Chaos Orbs</span>
+				</div>
+
+				<div class="tooltip-stats">
+					<div class="stat-item">
+						<span class="label">Divines</span>
+						<span class="val">${snapshot.total_divines?.toFixed(1) || '-'}</span>
+					</div>
+					<div class="stat-item">
+						<span class="label">Ratio</span>
+						<span class="val">${ratio}:1</span>
+					</div>
+				</div>
+
+				<div class="tooltip-categories">
+					${this.#getTopCategories(snapshot).map(cat => html`
+						<div class="cat-row">
+							<div class="cat-info">
+								<span class="cat-name">${cat.name}</span>
+								<span class="cat-val">${Math.round(cat.value).toLocaleString()}c</span>
+							</div>
+							<div class="cat-bar-bg">
+								<div class="cat-bar" style="width: ${cat.percent}%"></div>
+							</div>
+						</div>
+					`)}
+				</div>
+			</div>
+		`;
 	}
 
 	#renderWealthDashboard() {
@@ -699,11 +864,21 @@ export class StashesViewElement extends LitElement {
                 <div class="metrics-grid">
                     <!-- Total Chaos -->
                     <div class="metric-card">
-                        <div class="metric-label"><sl-icon name="currency-bitcoin"></sl-icon> Total Chaos</div>
+                        <div class="metric-label">
+                            <sl-icon name="currency-bitcoin"></sl-icon> 
+                            Total Chaos
+                            <sl-tooltip content="Snapshot value at capture time. May differ from live prices shown in the table below due to market price changes." style="--max-width: 200px;">
+                                <sl-icon name="info-circle" style="cursor: help; color: var(--sl-color-neutral-400); font-size: 0.9rem;"></sl-icon>
+                            </sl-tooltip>
+                        </div>
                         <div class="metric-value">${chaos.toLocaleString()}</div>
                         <div class="metric-sub ${chaosTrend}">
                             <sl-icon name="${trendIcon}"></sl-icon>
                             ${prev ? html`${chaosSign}${chaosDiff.toLocaleString()} vs last` : 'First snapshot'}
+                        </div>
+                        <div class="metric-timestamp">
+                            <sl-icon name="clock"></sl-icon>
+                            ${new Date(latest.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', month: 'short', day: 'numeric' })}
                         </div>
                     </div>
 
@@ -735,6 +910,27 @@ export class StashesViewElement extends LitElement {
 
                 ${this.#renderTopMoversStrip(latest, prev)}
 
+                <!-- Price Changes Section -->
+                ${this.selected_tabs.size > 0 ? html`
+                    <div class="price-changes-section">
+                        <div class="section-header">
+                            <span class="section-title">
+                                <sl-icon name="graph-up"></sl-icon>
+                                Price Variance Analysis
+                            </span>
+                            <sl-button 
+                                size="small" 
+                                @click=${this.#togglePriceChanges}
+                                variant=${this.showPriceChanges ? 'primary' : 'default'}
+                            >
+                                <sl-icon name="currency-exchange" slot="prefix"></sl-icon>
+                                ${this.showPriceChanges ? 'Hide' : 'Compare Prices'}
+                            </sl-button>
+                        </div>
+                        ${this.showPriceChanges ? this.#renderPriceChanges() : nothing}
+                    </div>
+                ` : nothing}
+
                 <div class="charts">
                     <div class="chart-container">
                         <div class="chart-header">
@@ -755,23 +951,7 @@ export class StashesViewElement extends LitElement {
                             @mousemove=${this.#onChartMouseMove}
                             @mouseleave=${this.#onChartMouseLeave}
                         ></canvas>
-                        ${this.hoveredSnapshot ? html`
-                            <div 
-                                class="chart-tooltip"
-                                style="left: ${this.hoveredSnapshot.x}px; top: ${this.hoveredSnapshot.y - 10}px; transform: translate(-50%, -100%);"
-                            >
-                                <div class="tooltip-date">${new Date(this.hoveredSnapshot.snapshot.timestamp * 1000).toLocaleString()}</div>
-                                <div class="tooltip-row">
-                                    <span class="tooltip-label">Chaos:</span>
-                                    <span class="tooltip-val">${Math.round(this.hoveredSnapshot.snapshot.total_chaos).toLocaleString()}</span>
-                                </div>
-                                ${this.hoveredSnapshot.snapshot.total_divines ? html`
-                                <div class="tooltip-row">
-                                    <span class="tooltip-label">Divines:</span>
-                                    <span class="tooltip-val">${this.hoveredSnapshot.snapshot.total_divines.toFixed(2)}</span>
-                                </div>` : nothing}
-                            </div>
-                        ` : nothing}
+                        ${this.#renderTooltip()}
                     </div>
                     <div class="chart-container">
                          <div class="chart-header">
@@ -822,6 +1002,388 @@ export class StashesViewElement extends LitElement {
                 `)}
             </div>
         `;
+	}
+
+	async #togglePriceChanges() {
+		this.showPriceChanges = !this.showPriceChanges;
+		if (this.showPriceChanges) {
+			await this.#calculatePriceChanges();
+		}
+	}
+
+	async #calculatePriceChanges() {
+		if (!this.stashLoader || this.selected_tabs.size === 0 || this.snapshots.length === 0) {
+			this.priceChangesData = [];
+			return;
+		}
+
+		try {
+			// Get current prices
+			const [currency, fragments, oils, incubators, fossils, resonators, deliriumOrbs, vials, cards, maps, gems] = await Promise.all([
+				this.stashLoader.currencyPrices(this.league),
+				this.stashLoader.fragmentPrices(this.league),
+				this.stashLoader.oilPrices(this.league),
+				this.stashLoader.incubatorPrices(this.league),
+				this.stashLoader.fossilPrices(this.league),
+				this.stashLoader.resonatorPrices(this.league),
+				this.stashLoader.deliriumOrbPrices(this.league),
+				this.stashLoader.vialPrices(this.league),
+				this.stashLoader.divinationCardPrices(this.league),
+				this.stashLoader.mapPrices(this.league),
+				this.stashLoader.gemPrices(this.league),
+			]);
+
+			// Build current price map
+			const currentPrices = new Map<string, { price: number; category: string }>();
+			const currentGemPrices = new Map<string, number>();
+
+			const addPrices = (rows: Array<{ name: string; chaos_value: number | null }>, category: string) => {
+				rows.forEach(r => {
+					if (r && typeof r.name === 'string' && typeof r.chaos_value === 'number') {
+						currentPrices.set(r.name, { price: r.chaos_value, category });
+					}
+				});
+			};
+
+			addPrices(currency, 'Currency');
+			addPrices(fragments, 'Fragment');
+			addPrices(oils, 'Oil');
+			addPrices(incubators, 'Incubator');
+			addPrices(fossils, 'Fossil');
+			addPrices(resonators, 'Resonator');
+			addPrices(deliriumOrbs, 'Delirium Orb');
+			addPrices(vials, 'Vial');
+			addPrices(cards, 'Divination Card');
+			addPrices(maps, 'Map');
+			gems.forEach((r: any) => {
+				const name = typeof r?.name === 'string' ? r.name : '';
+				const level = Number(r?.level ?? 0) || 0;
+				const quality = Number(r?.quality ?? 0) || 0;
+				const corrupt = Boolean(r?.corrupt ?? false);
+				const price = typeof r?.chaos_value === 'number' ? r.chaos_value : 0;
+				if (name && price > 0) currentGemPrices.set(gemKey(name, level, quality, corrupt), price);
+			});
+
+			const latest = this.snapshots[0];
+
+			// Check if snapshot has item prices
+			if (latest.item_prices) {
+				this.priceChangeMode = 'item';
+
+				// Get items from cached tabs
+				const items: Map<string, { qty: number; category: string; name: string; isGem: boolean; gl?: number; gq?: number; gc?: boolean }> = new Map();
+				for (const tabId of this.selected_tabs.keys()) {
+					const cached = this.#getCachedTab(tabId);
+					if (cached && cached.items) {
+						cached.items.forEach(item => {
+							const baseName = item.typeLine || item.baseType || item.name;
+							const qty = item.stackSize ?? 1;
+							const gl = getGemLevel(item);
+							const gq = getGemQuality(item);
+							const gc = isCorrupted(item);
+							const gem = isGem(item);
+							const key = gem ? gemKey(baseName, gl, gq, gc) : baseName;
+							const existing = items.get(key);
+							if (existing) {
+								existing.qty += qty;
+							} else {
+								const priceInfo = currentPrices.get(baseName);
+								items.set(key, {
+									qty,
+									category: gem ? 'Gem' : (priceInfo?.category || 'Other'),
+									name: baseName,
+									isGem: gem,
+									gl: gem ? gl : undefined,
+									gq: gem ? gq : undefined,
+									gc: gem ? gc : undefined,
+								});
+							}
+						});
+					}
+				}
+
+				const changes: Array<any> = [];
+				items.forEach((itemData) => {
+					let currentPrice = 0;
+					let snapshotPrice = 0;
+					if (itemData.isGem) {
+						const name = itemData.name;
+						const gl = itemData.gl || 0;
+						const gq = itemData.gq || 0;
+						const gc = !!itemData.gc;
+						if (gl === 20 && gq === 20) {
+							currentPrice = currentGemPrices.get(gemKey(name, 20, 20, gc)) || currentGemPrices.get(gemKey(name, 20, 20, false)) || 0;
+							snapshotPrice = latest.item_prices?.[gemKey(name, 20, 20, gc)] || latest.item_prices?.[gemKey(name, 20, 20, false)] || latest.item_prices?.[name] || 0;
+						} else {
+							currentPrice = currentGemPrices.get(gemKey(name, 1, 0, false)) || currentGemPrices.get(gemKey(name, gl, gq, false)) || currentPrices.get(name)?.price || 0;
+							snapshotPrice = latest.item_prices?.[gemKey(name, 1, 0, false)] || latest.item_prices?.[gemKey(name, gl, gq, false)] || latest.item_prices?.[name] || 0;
+						}
+					} else {
+						const currentInfo = currentPrices.get(itemData.name);
+						currentPrice = currentInfo?.price || 0;
+						snapshotPrice = latest.item_prices?.[itemData.name] || 0;
+					}
+
+					if (currentPrice === 0 && snapshotPrice === 0) return;
+
+					const change = currentPrice - snapshotPrice;
+					const changePercent = snapshotPrice > 0 ? (change / snapshotPrice) * 100 : (currentPrice > 0 ? 100 : 0);
+					const totalChange = change * itemData.qty;
+
+					if (Math.abs(totalChange) > 1) {
+						changes.push({
+							name: itemData.name,
+							category: itemData.category,
+							qty: itemData.qty,
+							snapshotPrice,
+							currentPrice,
+							change,
+							changePercent,
+							totalChange,
+						});
+					}
+				});
+
+				changes.sort((a, b) => Math.abs(b.totalChange) - Math.abs(a.totalChange));
+				this.priceChangesData = changes;
+
+			} else {
+				this.priceChangeMode = 'category';
+
+				// Calculate current category totals
+				const currentCategories = new Map<string, { total: number; items: Array<{ name: string; qty: number; total: number }> }>();
+
+				for (const tabId of this.selected_tabs.keys()) {
+					const cached = this.#getCachedTab(tabId);
+					if (cached && cached.items) {
+						cached.items.forEach(item => {
+							const name = item.typeLine || item.baseType || item.name;
+							const qty = item.stackSize ?? 1;
+							const priceInfo = currentPrices.get(name);
+							if (priceInfo) {
+								const total = priceInfo.price * qty;
+								const cat = priceInfo.category;
+
+								if (!currentCategories.has(cat)) {
+									currentCategories.set(cat, { total: 0, items: [] });
+								}
+
+								const catData = currentCategories.get(cat)!;
+								catData.total += total;
+
+								const existingItem = catData.items.find(i => i.name === name);
+								if (existingItem) {
+									existingItem.qty += qty;
+									existingItem.total += total;
+								} else {
+									catData.items.push({ name, qty, total });
+								}
+							}
+						});
+					}
+				}
+
+				const snapshotCats = latest.by_category || {};
+				const changes: Array<any> = [];
+				const allCats = new Set([...currentCategories.keys(), ...Object.keys(snapshotCats)]);
+
+				for (const cat of allCats) {
+					const current = currentCategories.get(cat);
+					const currentTotal = current?.total || 0;
+					const snapshotTotal = (snapshotCats[cat] as any)?.chaos || 0;
+					const diff = currentTotal - snapshotTotal;
+					const diffPercent = snapshotTotal > 0 ? (diff / snapshotTotal) * 100 : 0;
+					const topItems = current?.items.sort((a, b) => b.total - a.total).slice(0, 5) || [];
+
+					if (Math.abs(diff) > 1) {
+						changes.push({
+							category: cat,
+							snapshotTotal,
+							currentTotal,
+							diff,
+							diffPercent,
+							topItems
+						});
+					}
+				}
+
+				changes.sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
+				this.priceChangesData = changes;
+			}
+		} catch (err) {
+			console.error('Failed to calculate price changes:', err);
+			this.priceChangesData = [];
+		}
+	}
+
+	#renderPriceChanges() {
+		if (this.priceChangesData.length === 0) {
+			return html`
+				<div class="price-changes-empty">
+					<sl-icon name="info-circle"></sl-icon>
+					<p>Loading price comparison data...</p>
+				</div>
+			`;
+		}
+
+		if (this.priceChangeMode === 'item') {
+			const topGainers = this.priceChangesData.filter(i => i.totalChange > 0).slice(0, 10);
+			const topLosers = this.priceChangesData.filter(i => i.totalChange < 0).slice(0, 10);
+			const totalVariance = this.priceChangesData.reduce((acc, item) => acc + item.totalChange, 0);
+
+			return html`
+				<div class="price-changes-content">
+					<div class="price-stats">
+						<div class="price-stat">
+							<div class="stat-label">Total Variance</div>
+							<div class="stat-value ${totalVariance >= 0 ? 'positive' : 'negative'}">
+								${totalVariance >= 0 ? '+' : ''}${Math.round(totalVariance).toLocaleString()}c
+							</div>
+							<div class="stat-desc">Net difference (Live - Snapshot)</div>
+						</div>
+						<div class="price-stat positive">
+							<div class="stat-label">Gainers</div>
+							<div class="stat-value">${this.priceChangesData.filter(i => i.totalChange > 0).length}</div>
+						</div>
+						<div class="price-stat negative">
+							<div class="stat-label">Losers</div>
+							<div class="stat-value">${this.priceChangesData.filter(i => i.totalChange < 0).length}</div>
+						</div>
+					</div>
+
+					<div class="price-tables">
+						${topGainers.length > 0 ? html`
+							<div class="price-table-container">
+								<h4 class="price-table-title positive">
+									<sl-icon name="arrow-up-circle-fill"></sl-icon>
+									Top Price Increases
+								</h4>
+								<div class="price-table">
+									<div class="price-table-header">
+										<div>Item</div>
+										<div>Qty</div>
+										<div>Snapshot</div>
+										<div>Current</div>
+										<div>Change</div>
+										<div>Impact</div>
+									</div>
+									${topGainers.map(item => html`
+										<div class="price-table-row">
+											<div class="item-name" title="${item.name}">
+												<span class="item-category">${item.category}</span>
+												${item.name}
+											</div>
+											<div>${item.qty}</div>
+											<div>${item.snapshotPrice.toFixed(1)}c</div>
+											<div class="current-price positive">${item.currentPrice.toFixed(1)}c</div>
+											<div class="price-change positive">
+												+${item.changePercent.toFixed(1)}%
+											</div>
+											<div class="total-impact positive">
+												+${item.totalChange.toFixed(0)}c
+											</div>
+										</div>
+									`)}
+								</div>
+							</div>
+						` : nothing}
+
+						${topLosers.length > 0 ? html`
+							<div class="price-table-container">
+								<h4 class="price-table-title negative">
+									<sl-icon name="arrow-down-circle-fill"></sl-icon>
+									Top Price Decreases
+								</h4>
+								<div class="price-table">
+									<div class="price-table-header">
+										<div>Item</div>
+										<div>Qty</div>
+										<div>Snapshot</div>
+										<div>Current</div>
+										<div>Change</div>
+										<div>Impact</div>
+									</div>
+									${topLosers.map(item => html`
+										<div class="price-table-row">
+											<div class="item-name" title="${item.name}">
+												<span class="item-category">${item.category}</span>
+												${item.name}
+											</div>
+											<div>${item.qty}</div>
+											<div>${item.snapshotPrice.toFixed(1)}c</div>
+											<div class="current-price negative">${item.currentPrice.toFixed(1)}c</div>
+											<div class="price-change negative">
+												${item.changePercent.toFixed(1)}%
+											</div>
+											<div class="total-impact negative">
+												${item.totalChange.toFixed(0)}c
+											</div>
+										</div>
+									`)}
+								</div>
+							</div>
+						` : nothing}
+					</div>
+					<div style="margin-top: 1rem; font-size: 0.8rem; color: var(--sl-color-neutral-500); display: flex; gap: 0.5rem; align-items: center;">
+						<sl-icon name="check-circle"></sl-icon>
+						<span>Using exact item prices from snapshot.</span>
+					</div>
+				</div>
+			`;
+		} else {
+			// Category Mode
+			const significant = this.priceChangesData.filter(c => Math.abs(c.diff) > 10);
+			return html`
+				<div class="price-changes-content">
+					<div class="price-stats">
+						<div class="price-stat">
+							<div class="stat-label">Total Variance</div>
+							<div class="stat-value ${significant.reduce((acc, c) => acc + c.diff, 0) >= 0 ? 'positive' : 'negative'}">
+								${significant.reduce((acc, c) => acc + c.diff, 0) >= 0 ? '+' : ''}${Math.round(significant.reduce((acc, c) => acc + c.diff, 0)).toLocaleString()}c
+							</div>
+							<div class="stat-desc">Net difference (Live - Snapshot)</div>
+						</div>
+					</div>
+
+					<div class="price-table-container">
+						<h4 class="price-table-title">
+							<sl-icon name="list-task"></sl-icon>
+							Category Breakdown
+						</h4>
+						<div class="price-table">
+							<div class="price-table-header" style="grid-template-columns: 2fr 1fr 1fr 1fr 1fr;">
+								<div>Category</div>
+								<div>Snapshot</div>
+								<div>Live</div>
+								<div>Diff</div>
+								<div>%</div>
+							</div>
+							${significant.map(cat => html`
+								<div class="price-table-row" style="grid-template-columns: 2fr 1fr 1fr 1fr 1fr;">
+									<div class="item-name">
+										${cat.category}
+										<span class="item-category">Top: ${cat.topItems.slice(0, 2).map((i: any) => i.name).join(', ')}</span>
+									</div>
+									<div>${Math.round(cat.snapshotTotal).toLocaleString()}c</div>
+									<div>${Math.round(cat.currentTotal).toLocaleString()}c</div>
+									<div class="price-change ${cat.diff >= 0 ? 'positive' : 'negative'}">
+										${cat.diff >= 0 ? '+' : ''}${Math.round(cat.diff).toLocaleString()}c
+									</div>
+									<div class="total-impact ${cat.diff >= 0 ? 'positive' : 'negative'}">
+										${cat.diffPercent.toFixed(1)}%
+									</div>
+								</div>
+							`)}
+						</div>
+					</div>
+					
+					<div style="margin-top: 1rem; font-size: 0.8rem; color: var(--sl-color-neutral-500); display: flex; gap: 0.5rem; align-items: center;">
+						<sl-icon name="info-circle"></sl-icon>
+						<span>Detailed item price history is not available in this snapshot. Showing category totals instead. Capture a new snapshot to enable detailed analysis.</span>
+					</div>
+				</div>
+			`;
+		}
 	}
 
 	#renderCategoryList(latest: any) {
@@ -922,56 +1484,136 @@ export class StashesViewElement extends LitElement {
 
 		if (values.length === 0) return;
 
+		// Calculate chart area with margins for axes
+		const marginLeft = 60;
+		const marginRight = 20;
+		const marginTop = 20;
+		const marginBottom = 40;
+		const chartW = w - marginLeft - marginRight;
+		const chartH = h - marginTop - marginBottom;
+
 		const max = Math.max(...values);
 		const min = Math.min(...values);
 		const range = max - min || 1;
-		// Add 15% padding top and bottom
-		const yMax = max + (range * 0.15);
-		const yMin = Math.max(0, min - (range * 0.15));
+		// Add 10% padding top and bottom
+		const yMax = max + (range * 0.1);
+		const yMin = Math.max(0, min - (range * 0.1));
 		const yRange = yMax - yMin;
 
 		const n = values.length;
-		const xStep = w / Math.max(1, n - 1);
+		const xStep = chartW / Math.max(1, n - 1);
 
-		// Draw Grid
-		ctx.strokeStyle = 'rgba(0,0,0,0.05)';
-		ctx.lineWidth = 1;
-		ctx.beginPath();
-		// Horizontal grid lines (5 lines)
-		for (let i = 0; i <= 4; i++) {
-			const y = h - (i / 4) * h;
-			ctx.moveTo(0, y);
-			ctx.lineTo(w, y);
+		// Get data for timestamps
+		let data = [...this.snapshots];
+		if (this.chartRange === 'recent') {
+			data = data.slice(0, 20);
 		}
-		ctx.stroke();
 
-		// Gradient fill
-		const gradient = ctx.createLinearGradient(0, 0, 0, h);
+		// Draw background
+		ctx.fillStyle = 'rgba(255, 255, 255, 0.02)';
+		ctx.fillRect(marginLeft, marginTop, chartW, chartH);
+
+		// Draw grid lines and Y-axis labels
+		ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+		ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+		ctx.font = '11px sans-serif';
+		ctx.lineWidth = 1;
+
+		const numYTicks = 5;
+		for (let i = 0; i <= numYTicks; i++) {
+			const value = yMin + (yRange * i / numYTicks);
+			const y = marginTop + chartH - (i / numYTicks) * chartH;
+
+			// Grid line
+			ctx.beginPath();
+			ctx.moveTo(marginLeft, y);
+			ctx.lineTo(marginLeft + chartW, y);
+			ctx.stroke();
+
+			// Y-axis label
+			ctx.textAlign = 'right';
+			ctx.textBaseline = 'middle';
+			let label;
+			if (yRange < 2) {
+				label = value.toFixed(2);
+			} else if (yRange < 10) {
+				label = value.toFixed(1);
+			} else {
+				label = Math.round(value).toLocaleString();
+			}
+			ctx.fillText(label, marginLeft - 5, y);
+		}
+
+		// Draw X-axis labels (timestamps)
+		ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+		ctx.textAlign = 'center';
+		ctx.textBaseline = 'top';
+
+		const numXTicks = Math.min(5, n);
+		for (let i = 0; i < numXTicks; i++) {
+			const index = Math.floor((n - 1) * i / (numXTicks - 1));
+			const reversedIndex = n - 1 - index;
+			const x = marginLeft + index * xStep;
+
+			if (data[reversedIndex]) {
+				const date = new Date(data[reversedIndex].timestamp * 1000);
+				const timeLabel = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+				const dateLabel = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+
+				// Draw tick mark
+				ctx.beginPath();
+				ctx.moveTo(x, marginTop + chartH);
+				ctx.lineTo(x, marginTop + chartH + 5);
+				ctx.stroke();
+
+				ctx.fillText(timeLabel, x, marginTop + chartH + 8);
+				ctx.font = '9px sans-serif';
+				ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+				ctx.fillText(dateLabel, x, marginTop + chartH + 22);
+				ctx.font = '11px sans-serif';
+				ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+			}
+		}
+
+		// Draw axis labels
+		ctx.save();
+		ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+		ctx.font = 'bold 12px sans-serif';
+
+		// Y-axis label (rotated)
+		ctx.translate(15, marginTop + chartH / 2);
+		ctx.rotate(-Math.PI / 2);
+		ctx.textAlign = 'center';
+		ctx.fillText(this.chartMode === 'divine' ? 'Divine Orbs' : 'Chaos Orbs', 0, 0);
+		ctx.restore();
+
+		// X-axis label
+		ctx.fillText('Time', marginLeft + chartW / 2, h - 5);
+
+		// Gradient fill under line
+		const gradient = ctx.createLinearGradient(0, marginTop, 0, marginTop + chartH);
 		if (this.chartMode === 'divine') {
-			gradient.addColorStop(0, 'rgba(234, 179, 8, 0.2)'); // Yellow/Gold
+			gradient.addColorStop(0, 'rgba(234, 179, 8, 0.3)'); // Yellow/Gold
 			gradient.addColorStop(1, 'rgba(234, 179, 8, 0)');
 		} else {
-			gradient.addColorStop(0, 'rgba(99, 102, 241, 0.2)'); // Indigo
+			gradient.addColorStop(0, 'rgba(99, 102, 241, 0.3)'); // Indigo
 			gradient.addColorStop(1, 'rgba(99, 102, 241, 0)');
 		}
 
 		ctx.beginPath();
-		// Start from bottom left
-		ctx.moveTo(0, h);
+		ctx.moveTo(marginLeft, marginTop + chartH);
 		for (let i = 0; i < n; i++) {
-			const x = i * xStep;
+			const x = marginLeft + i * xStep;
 			const v = values[n - 1 - i]; // Reverse to show oldest to newest left-to-right
-			const y = h - ((v - yMin) / yRange) * h;
-			if (i === 0) ctx.lineTo(x, y); // First point
-			else ctx.lineTo(x, y);
+			const y = marginTop + chartH - ((v - yMin) / yRange) * chartH;
+			ctx.lineTo(x, y);
 		}
-		// Close path for fill
-		ctx.lineTo((n - 1) * xStep, h);
+		ctx.lineTo(marginLeft + (n - 1) * xStep, marginTop + chartH);
 		ctx.closePath();
 		ctx.fillStyle = gradient;
 		ctx.fill();
 
-		// Stroke line
+		// Draw line
 		ctx.strokeStyle = this.chartMode === 'divine'
 			? (getComputedStyle(this).getPropertyValue('--sl-color-warning-500') || '#eab308')
 			: (getComputedStyle(this).getPropertyValue('--sl-color-primary-600') || '#4f46e5');
@@ -980,9 +1622,9 @@ export class StashesViewElement extends LitElement {
 		ctx.lineJoin = 'round';
 		ctx.beginPath();
 		for (let i = 0; i < n; i++) {
-			const x = i * xStep;
+			const x = marginLeft + i * xStep;
 			const v = values[n - 1 - i];
-			const y = h - ((v - yMin) / yRange) * h;
+			const y = marginTop + chartH - ((v - yMin) / yRange) * chartH;
 			if (i === 0) ctx.moveTo(x, y);
 			else ctx.lineTo(x, y);
 		}
@@ -991,9 +1633,9 @@ export class StashesViewElement extends LitElement {
 		// Draw points
 		ctx.fillStyle = '#fff';
 		for (let i = 0; i < n; i++) {
-			const x = i * xStep;
+			const x = marginLeft + i * xStep;
 			const v = values[n - 1 - i];
-			const y = h - ((v - yMin) / yRange) * h;
+			const y = marginTop + chartH - ((v - yMin) / yRange) * chartH;
 
 			ctx.beginPath();
 			ctx.arc(x, y, 4, 0, Math.PI * 2);
@@ -1016,8 +1658,8 @@ export class StashesViewElement extends LitElement {
 				ctx.lineWidth = 1;
 				ctx.setLineDash([5, 5]);
 				ctx.beginPath();
-				ctx.moveTo(x, 0);
-				ctx.lineTo(x, h);
+				ctx.moveTo(x, marginTop);
+				ctx.lineTo(x, marginTop + chartH);
 				ctx.stroke();
 				ctx.restore();
 			}
@@ -1027,40 +1669,64 @@ export class StashesViewElement extends LitElement {
 	#onChartMouseMove(e: MouseEvent) {
 		const canvas = e.target as HTMLCanvasElement;
 		const rect = canvas.getBoundingClientRect();
-		const x = e.clientX - rect.left;
-		const w = rect.width;
-		const n = this.snapshots.length;
+		const mouseX = e.clientX - rect.left;
 
+		const marginLeft = 60;
+		const marginRight = 20;
+		const marginTop = 20;
+		const marginBottom = 40;
+		const chartW = rect.width - marginLeft - marginRight;
+		const chartH = 300 - marginTop - marginBottom;
+
+		const n = this.snapshots.length;
 		if (n === 0) return;
 
-		const xStep = w / Math.max(1, n - 1);
-		// Find nearest index. Note: chart draws oldest to newest (reversed array)
-		// so index 0 on chart is snapshots[n-1]
-		let index = Math.round(x / xStep);
-		index = Math.max(0, Math.min(n - 1, index));
+		// Calculate chart-relative X position
+		const chartX = mouseX - marginLeft;
+		if (chartX < 0 || chartX > chartW) {
+			this.hoveredSnapshot = null;
+			this.#renderHistoryCharts();
+			return;
+		}
 
-		// Map back to snapshots array index
-		const snapshotIndex = n - 1 - index;
+		const activeN = this.chartRange === 'recent' ? Math.min(20, n) : n;
+		const xStep = chartW / Math.max(1, activeN - 1);
+
+		// Find nearest index
+		let index = Math.round(chartX / xStep);
+		index = Math.max(0, Math.min(activeN - 1, index));
+
+		// Map back to snapshots array index (reversed)
+		const snapshotIndex = activeN - 1 - index;
 		const snapshot = this.snapshots[snapshotIndex];
 
 		// Calculate Y position for tooltip
-		const values = this.snapshots.map(s => this.chartMode === 'divine' ? (s.total_divines || 0) : (s.total_chaos || 0));
+		const values = this.snapshots.slice(0, activeN).map(s => this.chartMode === 'divine' ? (s.total_divines || 0) : (s.total_chaos || 0));
 		const max = Math.max(...values);
 		const min = Math.min(...values);
 		const range = max - min || 1;
-		const yMax = max + (range * 0.15);
-		const yMin = Math.max(0, min - (range * 0.15));
+		const yMax = max + (range * 0.1);
+		const yMin = Math.max(0, min - (range * 0.1));
 		const yRange = yMax - yMin;
+		const value = this.chartMode === 'divine' ? (snapshot.total_divines || 0) : (snapshot.total_chaos || 0);
+		const y = marginTop + chartH - ((value - yMin) / yRange) * chartH;
 
-		const val = this.chartMode === 'divine' ? (snapshot.total_divines || 0) : (snapshot.total_chaos || 0);
-		const y = 300 - ((val - yMin) / yRange) * 300; // 300 is fixed height
+		let align: 'center' | 'left' | 'right' = 'center';
+		const approxTooltipHalf = 120;
+		if (mouseX < approxTooltipHalf) {
+			align = 'left';
+		} else if (mouseX > rect.width - approxTooltipHalf) {
+			align = 'right';
+		}
 
 		this.hoveredSnapshot = {
-			x: index * xStep,
-			y: y,
-			index: index,
-			snapshot
+			snapshot,
+			x: mouseX,
+			y,
+			index,
+			align,
 		};
+		this.#renderHistoryCharts();
 	}
 
 	#onChartMouseLeave() {
@@ -1174,6 +1840,51 @@ export class StashesViewElement extends LitElement {
 			this.#waitForLoadsAvailable();
 		}
 	}
+}
+
+function isGem(item: any): boolean {
+  const ft = (item as any).frameType;
+  const props = (item as any).properties || [];
+  const hasGemProp = Array.isArray(props) && props.some((p: any) => p?.name === 'Gem Level' || p?.name === 'Level');
+  return ft === 4 || hasGemProp;
+}
+
+function getGemLevel(item: any): number {
+  const p = item.properties || [];
+  for (const prop of p) {
+    if ((prop as any).name === 'Gem Level' || (prop as any).name === 'Level') {
+      const val = Array.isArray((prop as any).values) && (prop as any).values?.[0]?.[0];
+      if (val !== undefined && val !== null) {
+        const v = String(val);
+        const m = v.match(/(\d+)/);
+        if (m) return parseInt(m[1], 10);
+      }
+    }
+  }
+  return 0;
+}
+
+function getGemQuality(item: any): number {
+  const p = item.properties || [];
+  for (const prop of p) {
+    if ((prop as any).name === 'Quality') {
+      const val = Array.isArray((prop as any).values) && (prop as any).values?.[0]?.[0];
+      if (val !== undefined && val !== null) {
+        const v = String(val);
+        const m = v.match(/(\d+)/);
+        if (m) return parseInt(m[1], 10);
+      }
+    }
+  }
+  return 0;
+}
+
+function isCorrupted(item: any): boolean {
+  return Boolean((item as any).corrupted);
+}
+
+function gemKey(name: string, level: number, quality: number, corrupt: boolean): string {
+  return `${name}__${level}__${quality}__${corrupt ? 'c' : 'u'}`;
 }
 
 const sleepSecs = async (secs: number): Promise<void> => {

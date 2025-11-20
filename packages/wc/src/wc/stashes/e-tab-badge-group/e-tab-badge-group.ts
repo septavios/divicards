@@ -5,6 +5,7 @@ import { type League, isPermanentLeague } from '@divicards/shared/types.js';
 import { ACTIVE_LEAGUE } from '@divicards/shared/lib.js';
 import '@shoelace-style/shoelace/dist/components/input/input.js';
 import '@shoelace-style/shoelace/dist/components/button/button.js';
+import '@shoelace-style/shoelace/dist/components/button-group/button-group.js';
 import '../../e-pagination/e-pagination.js';
 import '../../e-help-tip.js';
 import type { ErrorLabel, SelectedStashtabs } from '../types.js';

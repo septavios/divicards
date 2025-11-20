@@ -25,6 +25,7 @@ export class PoeGeneralPricedListElement extends LitElement {
   @property({ attribute: false }) debugData: Record<string, any[]> = {};
   @property({ type: Boolean }) aggregate: boolean = false;
   @property() filter: string = '';
+  @property() filterPending: string = '';
   @property({ type: Boolean }) invalidRegex: boolean = false;
   @property({ type: Boolean }) filtersOpen: boolean = false;
   @property() category: string | null = null;
@@ -34,7 +35,12 @@ export class PoeGeneralPricedListElement extends LitElement {
   @property({ type: Number }) priceMax: number | null = null;
   @property({ type: Number }) totalMin: number | null = null;
   @property({ type: Number }) totalMax: number | null = null;
+  @property({ type: Number }) page: number = 1;
+  @property({ type: Number }) perPage: number = 50;
   private categoryIndex: Map<string, string> = new Map();
+  private essencePriceByTypeLine: Map<string, number> = new Map();
+  private gemPriceIndex: Map<string, number> = new Map();
+  private mapPriceIndex: Map<string, number> = new Map();
 
   private buildCategoryIndex(src: CategorySource): void {
     const map = new Map<string, string>();
@@ -81,11 +87,12 @@ export class PoeGeneralPricedListElement extends LitElement {
 
   protected async firstUpdated(): Promise<void> {
     if (this.prices.size === 0) await this.loadPrices();
+    this.filterPending = this.filter;
   }
 
   private async loadPrices(): Promise<void> {
     try {
-      const [currency, fragments, oils, incubators, fossils, resonators, deliriumOrbs, vials] = await Promise.all([
+      const [currency, fragments, oils, incubators, fossils, resonators, deliriumOrbs, vials, essences, cards, gems, maps] = await Promise.all([
         this.stashLoader.currencyPrices(this.league as any),
         this.stashLoader.fragmentPrices(this.league as any),
         this.stashLoader.oilPrices(this.league as any),
@@ -94,8 +101,12 @@ export class PoeGeneralPricedListElement extends LitElement {
         this.stashLoader.resonatorPrices(this.league as any),
         this.stashLoader.deliriumOrbPrices(this.league as any),
         this.stashLoader.vialPrices(this.league as any),
+        this.stashLoader.essencePrices(this.league as any),
+        this.stashLoader.divinationCardPrices(this.league as any),
+        this.stashLoader.gemPrices(this.league as any),
+        this.stashLoader.mapPrices(this.league as any),
       ]);
-      this.debugData = { currency, fragments, oils, incubators, fossils, resonators, deliriumOrbs, vials } as any;
+      this.debugData = { currency, fragments, oils, incubators, fossils, resonators, deliriumOrbs, vials, essences, cards, gems, maps } as any;
       const next = new Map<string, number>();
       const merge = (rows: Array<{ name: string; chaos_value: number | null }>) => {
         rows.forEach(r => {
@@ -105,8 +116,41 @@ export class PoeGeneralPricedListElement extends LitElement {
           }
         });
       };
-      [currency, fragments, oils, incubators, fossils, resonators, deliriumOrbs, vials].forEach(merge);
-      this.buildCategoryIndex({ currency, fragments, oils, incubators, fossils, resonators, deliriumOrbs, vials });
+      [currency, fragments, oils, incubators, fossils, resonators, deliriumOrbs, vials, cards].forEach(merge);
+      
+
+      // Build essence price lookup by full typeLine, e.g., "Screaming Essence of Scorn"
+      this.essencePriceByTypeLine.clear();
+      (essences || []).forEach((r: { name: string; variant?: string | null; chaos_value: number | null }) => {
+        const base = String(r.name || '').trim();
+        const variant = String(r.variant || '').trim();
+        const full = variant ? `${variant} ${base}` : base;
+        const price = typeof r.chaos_value === 'number' ? r.chaos_value : null;
+        if (price !== null && !this.essencePriceByTypeLine.has(full)) {
+          this.essencePriceByTypeLine.set(full, price);
+        }
+      });
+
+      // Build gem price index keyed by name+level+quality+corrupt
+      this.gemPriceIndex.clear();
+      (gems || []).forEach((r: { name: string; level: number; quality: number; corrupt?: boolean; chaos_value: number | null }) => {
+        const k = gemKeyC(r.name, r.level ?? 0, r.quality ?? 0, Boolean(r.corrupt));
+        const price = typeof r.chaos_value === 'number' ? r.chaos_value : null;
+        if (price !== null && !this.gemPriceIndex.has(k)) {
+          this.gemPriceIndex.set(k, price);
+        }
+      });
+
+      this.mapPriceIndex.clear();
+      (maps || []).forEach((r: { name: string; tier: number; chaos_value: number | null }) => {
+        const k = mapKey(r.name, r.tier ?? 0);
+        const price = typeof r.chaos_value === 'number' ? r.chaos_value : null;
+        if (price !== null && !this.mapPriceIndex.has(k)) {
+          this.mapPriceIndex.set(k, price);
+        }
+      });
+
+      this.buildCategoryIndex({ currency, fragments, oils, incubators, fossils, resonators, deliriumOrbs, vials, essences, cards, maps, gems });
       this.prices = next;
       this.errorMessage = null;
     } catch (err: unknown) {
@@ -119,23 +163,27 @@ export class PoeGeneralPricedListElement extends LitElement {
   protected render(): TemplateResult {
     const items = this.tab?.items ?? [];
     const tabIndex = this.tab?.index ?? 0;
-    const groups = groupByName(items);
+    const groups = groupAggregated(items);
     const stashName = this.aggregate ? '' : (this.tab?.name || (this.tab ? `Tab #${tabIndex}` : ''));
     const rows = Array.from(groups.values()).map(g => {
-      const price = this.prices.get(g.name) ?? 0;
+      const price = this.resolvePrice(g.sample, g.name);
       const total = +(price * g.total).toFixed(1);
-      return { name: g.name, stash: stashName, qty: g.total, tab: tabIndex, price, total, sample: g.sample };
+      const isGemItem = isGem(g.sample);
+      const gl = isGemItem ? getGemLevel(g.sample) : null;
+      const gq = isGemItem ? getGemQuality(g.sample) : null;
+      const gc = isGemItem ? isCorrupted(g.sample) : null;
+      const cat = this.categoryIndex.get(normalizeName(g.name)) ?? (isGemItem ? 'Gem' : 'Other');
+      return { name: g.name, stash: stashName, gemLevel: gl, gemQuality: gq, corrupted: gc, category: cat, qty: g.total, tab: tabIndex, price, total, sample: g.sample };
     });
     if (this.aggregate && rows.length === 0) {
       return html``;
     }
     let regex: RegExp | null = null;
-    this.invalidRegex = false;
-    if (this.filter && this.filter.trim().length) {
+    if (this.filter && this.filter.trim().length && !this.invalidRegex) {
       try {
         regex = new RegExp(this.filter.trim(), 'i');
       } catch (_) {
-        this.invalidRegex = true;
+        // keep invalidRegex state
       }
     }
     const filteredByRegex = regex ? rows.filter(r => regex!.test(r.name)) : rows;
@@ -152,13 +200,27 @@ export class PoeGeneralPricedListElement extends LitElement {
       }
     });
 
-    const headerCols = this.aggregate ? ['Name', 'Quantity', 'Price', 'Total'] : ['Name', 'Stash', 'Tab', 'Quantity', 'Price', 'Total'];
+    const headerCols = this.aggregate ? ['Name', 'Gem Level', 'Gem Quality', 'Corrupted', 'Category', 'Quantity', 'Price', 'Total'] : ['Name', 'Stash', 'Tab', 'Quantity', 'Price', 'Total'];
     const filteredTotal = filtered.reduce((sum, r) => sum + (r.total || 0), 0);
+    const totalPages = Math.max(1, Math.ceil(filtered.length / Math.max(1, this.perPage)));
+    const safePage = Math.min(Math.max(1, this.page), totalPages);
+    const start = (safePage - 1) * Math.max(1, this.perPage);
+    const sliced = filtered.slice(start, start + Math.max(1, this.perPage));
     return html`<div class="list">
       <div class="tools">
-        <sl-input size="small" placeholder="Filter (regex)" .value=${this.filter} @sl-input=${(e: any) => { this.filter = e.target.value; }}></sl-input>
-      ${this.aggregate ? html`<sl-button size="small" id="filtersBtn" @click=${() => { this.filtersOpen = !this.filtersOpen; }}>Filters</sl-button>` : null}
+        <sl-input size="small" placeholder="Filter (regex)" .value=${this.filterPending} @sl-input=${(e: any) => { this.filterPending = e.target.value; }} @keydown=${(e: KeyboardEvent) => { if ((e as any).key === 'Enter') this.applyTextFilter(); }}></sl-input>
+        <sl-button size="small" variant="primary" @click=${this.applyTextFilter}>Apply</sl-button>
+        <sl-button size="small" variant="neutral" @click=${this.clearAllFilters}>Clear</sl-button>
+        ${this.aggregate ? html`<sl-button size="small" id="filtersBtn" @click=${() => { this.filtersOpen = !this.filtersOpen; }}>Filters</sl-button>` : null}
       ${this.aggregate ? html`<div class="filtered-total">Filtered total: ${filteredTotal.toFixed(0)}c</div>` : null}
+      ${this.aggregate ? html`<div class="pager">
+        <sl-button size="small" @click=${() => { this.page = Math.max(1, this.page - 1); }}>◀</sl-button>
+        <span class="pager__info">Page ${safePage} / ${totalPages}</span>
+        <sl-button size="small" @click=${() => { this.page = Math.min(totalPages, this.page + 1); }}>▶</sl-button>
+        <sl-select size="small" .value=${String(this.perPage)} @sl-change=${(e: any) => { const v = Number(e.target.value); this.perPage = Math.max(1, v); this.page = 1; }}>
+          ${[20,50,100,200].map(n => html`<sl-option value=${String(n)}>${n}/page</sl-option>`)}
+        </sl-select>
+      </div>` : null}
         <sl-button size="small" @click=${() => { this.viewPricesOpen = true; }}>View Prices JSON</sl-button>
       </div>
       ${this.aggregate ? html`<sl-popup .active=${this.filtersOpen} anchor="filtersBtn" placement="bottom-end" distance="8">
@@ -193,16 +255,18 @@ export class PoeGeneralPricedListElement extends LitElement {
       </sl-alert>` : null}
       ${this.invalidRegex ? html`<sl-alert variant="warning" closable @sl-after-hide=${() => (this.invalidRegex = false)}>
         <sl-icon slot="icon" name="exclamation-triangle"></sl-icon>
-        Invalid regex: ${this.filter}
+        Invalid regex: ${this.filterPending}
       </sl-alert>` : null}
       ${this.renderHeader(headerCols)}
-      ${filtered.map(r => html`<div class="row ${this.aggregate ? 'agg' : ''}">
+      ${sliced.map(r => html`<div class="row ${this.aggregate ? 'agg' : ''}">
         <div class="name">
           <poe-item .item=${normalizeItem(r.sample)}></poe-item>
           <span>${r.name}</span>
         </div>
-        ${this.aggregate ? null : html`<div class="stash">${r.stash ?? ''}</div>`}
-        ${this.aggregate ? null : html`<div class="tab">${r.tab}</div>`}
+        ${this.aggregate ? html`<div class="level">${r.gemLevel ?? '-'}</div>` : html`<div class="stash">${r.stash ?? ''}</div>`}
+        ${this.aggregate ? html`<div class="quality">${r.gemQuality ?? '-'}</div>` : html`<div class="tab">${r.tab}</div>`}
+        ${this.aggregate ? html`<div class="corrupted">${typeof r.corrupted === 'boolean' ? (r.corrupted ? 'Yes' : 'No') : '-'}</div>` : null}
+        ${this.aggregate ? html`<div class="category">${r.category}</div>` : null}
         <div class="qty">${r.qty}</div>
         <div class="price">${r.price ? `${r.price.toFixed(0)}c` : '-'}</div>
         <div class="total">${r.total ? `${r.total.toFixed(0)}c` : '-'}</div>
@@ -214,13 +278,51 @@ export class PoeGeneralPricedListElement extends LitElement {
     </sl-dialog>`;
   }
 
+  private resolvePrice(item: PoeItem, displayName: string): number {
+    if (isGem(item)) {
+      const lvl = getGemLevel(item);
+      const q = getGemQuality(item);
+      const c = isCorrupted(item);
+      if (lvl === 20 && q === 20) {
+        const pExact = this.gemPriceIndex.get(gemKeyC(displayName, 20, 20, c))
+          ?? this.gemPriceIndex.get(gemKeyC(displayName, 20, 20, false));
+        if (typeof pExact === 'number') return pExact;
+      } else {
+        const pDowngrade = this.gemPriceIndex.get(gemKeyC(displayName, 1, 0, false))
+          ?? this.gemPriceIndex.get(gemKeyC(displayName, lvl, q, false));
+        if (typeof pDowngrade === 'number') return pDowngrade;
+      }
+      const nameFallback = this.prices.get(displayName);
+      if (typeof nameFallback === 'number') return nameFallback;
+    }
+    if (isEssence(item)) {
+      const typeLine = String((item as any).typeLine || displayName);
+      const direct = this.essencePriceByTypeLine.get(typeLine);
+      if (typeof direct === 'number') return direct;
+      const parsed = parseEssenceName(typeLine);
+      const base = parsed.base;
+      const basePrice = this.prices.get(base);
+      if (typeof basePrice === 'number') return basePrice;
+    }
+    if (isMap(item)) {
+      const tier = getMapTier(item);
+      const k = mapKey(displayName, tier);
+      const p = this.mapPriceIndex.get(k);
+      if (typeof p === 'number') return p;
+      const fallback = this.prices.get(displayName);
+      if (typeof fallback === 'number') return fallback;
+    }
+    const p = this.prices.get(displayName);
+    return typeof p === 'number' ? p : 0;
+  }
+
   private renderHeader(cols: string[]): TemplateResult {
     const keys: Record<string, PoeGeneralPricedListElement['sortBy']> = {
       Name: 'name', Stash: 'stash', Tab: 'tab', Quantity: 'qty', Price: 'price', Total: 'total'
     };
     const numeric = new Set(['Quantity', 'Price', 'Total']);
     return html`<div class="header ${this.aggregate ? 'agg' : ''}">
-      ${cols.map(c => html`<button class="th ${numeric.has(c) ? 'numeric' : ''}" @click=${() => this.onSort(keys[c])}>${c}${this.sortBy === keys[c] ? (this.sortDir === 'asc' ? ' ▲' : ' ▼') : ''}</button>`)}
+      ${cols.map(c => html`<button class="th ${numeric.has(c) ? 'numeric' : ''}" @click=${() => (keys[c] ? this.onSort(keys[c]) : undefined)}>${c}${this.sortBy === keys[c] ? (this.sortDir === 'asc' ? ' ▲' : ' ▼') : ''}</button>`)}
     </div>`;
   }
 
@@ -240,15 +342,18 @@ export class PoeGeneralPricedListElement extends LitElement {
     .tools { display: flex; justify-content: flex-end; gap: 8px; padding-bottom: 6px; align-items: center; }
     .tools sl-input { min-width: 260px; }
     .filtered-total { font-weight: 600; opacity: 0.8; }
+    .pager { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
+    .pager__info { min-width: 100px; text-align: center; }
     sl-alert { position: sticky; top: 0; z-index: 1; }
     .header, .row { display: grid; grid-template-columns: 1fr 160px 60px 80px 80px 100px; align-items: center; column-gap: 12px; }
-    .header.agg, .row.agg { grid-template-columns: 1fr 80px 80px 100px; }
+    .header.agg, .row.agg { grid-template-columns: 1fr 80px 80px 100px 160px 80px 80px 100px; }
     .header { font-weight: 600; position: sticky; top: 0; background: var(--sl-color-gray-50); z-index: 2; padding: 6px 0; border-bottom: 1px solid var(--sl-color-gray-200); }
     .header .th { text-align: left; background: transparent; border: none; color: inherit; cursor: pointer; padding: 4px 0; }
     .header .th.numeric { text-align: right; }
     .name { display: flex; align-items: center; gap: 8px; }
     poe-item { --cell-size: 32px; --poe-item-size: 32px; --stack-size-font-size: 10px; }
-    .qty { text-align: right; }
+    .level, .quality, .qty { text-align: right; }
+    .corrupted { text-align: center; }
     .price, .total { text-align: right; }
     .row { border-bottom: 1px solid var(--sl-color-gray-200); padding: 6px 0; }
     .filters-panel { width: 360px; max-width: 80vw; padding: 12px; display: grid; row-gap: 10px; }
@@ -270,16 +375,139 @@ function normalizeItem(item: PoeItem): PoeItem {
 
 type Group = { name: string; total: number; sample: PoeItem };
 
-function groupByName(items: PoeItem[]): Map<string, Group> {
+function isGem(item: PoeItem): boolean {
+  const ft = (item as any).frameType;
+  const props = (item as any).properties || [];
+  const hasGemProp = Array.isArray(props) && props.some((p: any) => p?.name === 'Gem Level' || p?.name === 'Level');
+  return ft === 4 || hasGemProp;
+}
+
+function getGemLevel(item: PoeItem): number {
+  const p = (item as any).properties || [];
+  for (const prop of p) {
+    if ((prop as any).name === 'Gem Level' || (prop as any).name === 'Level') {
+      const val = Array.isArray((prop as any).values) && (prop as any).values?.[0]?.[0];
+      if (val !== undefined && val !== null) {
+        const v = String(val);
+        const m = v.match(/(\d+)/);
+        if (m) return parseInt(m[1], 10);
+      }
+    }
+  }
+  return 0;
+}
+
+function getGemQuality(item: PoeItem): number {
+  const p = (item as any).properties || [];
+  for (const prop of p) {
+    if ((prop as any).name === 'Quality') {
+      const val = Array.isArray((prop as any).values) && (prop as any).values?.[0]?.[0];
+      if (val !== undefined && val !== null) {
+        const v = String(val);
+        const m = v.match(/(\d+)/);
+        if (m) return parseInt(m[1], 10);
+      }
+    }
+  }
+  return 0;
+}
+
+function isCorrupted(item: PoeItem): boolean {
+  return Boolean((item as any).corrupted);
+}
+
+function gemKeyC(name: string, level: number, quality: number, corrupt: boolean): string { return `${name}__${level}__${quality}__${corrupt ? 'c' : 'u'}`; }
+
+function groupAggregated(items: PoeItem[]): Map<string, Group> {
   const map = new Map<string, Group>();
   for (const it of items) {
-    const name = it.typeLine || it.baseType || it.name;
+    const baseName = it.typeLine || it.baseType || it.name;
+    let key = baseName;
+    if (isGem(it)) {
+      const lvl = getGemLevel(it);
+      const q = getGemQuality(it);
+      const c = isCorrupted(it);
+      key = `${baseName}__${lvl}__${q}__${c ? 'c' : 'u'}`;
+    }
     const qty = it.stackSize ?? 1;
-    const prev = map.get(name);
-    if (prev) prev.total += qty; else map.set(name, { name, total: qty, sample: it });
+    const prev = map.get(key);
+    if (prev) {
+      prev.total += qty;
+    } else {
+      map.set(key, { name: baseName, total: qty, sample: it });
+    }
   }
   return map;
 }
+
+function isEssence(item: PoeItem): boolean {
+  const name = String((item as any).typeLine || (item as any).baseType || (item as any).name || '');
+  return name.includes('Essence');
+}
+
+function isMap(item: PoeItem): boolean {
+  const props = (item as any).properties || [];
+  const hasMapTier = Array.isArray(props) && props.some((p: any) => p?.name === 'Map Tier');
+  const name = String((item as any).typeLine || (item as any).baseType || (item as any).name || '');
+  return hasMapTier || name.endsWith(' Map');
+}
+
+function getMapTier(item: PoeItem): number {
+  const p = (item as any).properties || [];
+  for (const prop of p) {
+    if ((prop as any).name === 'Map Tier') {
+      const val = Array.isArray((prop as any).values) && (prop as any).values?.[0]?.[0];
+      if (val !== undefined && val !== null) {
+        const v = String(val);
+        const m = v.match(/(\d+)/);
+        if (m) return parseInt(m[1], 10);
+      }
+    }
+  }
+  return 0;
+}
+
+function mapKey(name: string, tier: number): string { return `${name}__${tier}`; }
+
+// actions
+export interface PoeGeneralPricedListElement {
+  applyTextFilter(): void;
+  clearAllFilters(): void;
+}
+
+(PoeGeneralPricedListElement.prototype as any).applyTextFilter = function(this: PoeGeneralPricedListElement) {
+  const val = (this.filterPending || '').trim();
+  if (!val) {
+    this.filter = '';
+    this.invalidRegex = false;
+    this.page = 1 as any;
+    return;
+  }
+  try {
+    // eslint-disable-next-line no-new
+    new RegExp(val, 'i');
+    this.filter = val;
+    this.invalidRegex = false;
+    this.page = 1 as any;
+  } catch (_) {
+    this.invalidRegex = true;
+  }
+};
+
+(PoeGeneralPricedListElement.prototype as any).clearAllFilters = function(this: PoeGeneralPricedListElement) {
+  this.filterPending = '' as any;
+  this.filter = '' as any;
+  this.invalidRegex = false as any;
+  this.category = null as any;
+  this.qtyMin = null as any;
+  this.qtyMax = null as any;
+  this.priceMin = null as any;
+  this.priceMax = null as any;
+  this.totalMin = null as any;
+  this.totalMax = null as any;
+  this.page = 1 as any;
+};
+
 
 type CategorySource = {
   currency: Array<{ name: string }>,
@@ -289,7 +517,11 @@ type CategorySource = {
   fossils: Array<{ name: string }>,
   resonators: Array<{ name: string }>,
   deliriumOrbs: Array<{ name: string }>,
-  vials: Array<{ name: string }>
+  vials: Array<{ name: string }>,
+  essences?: Array<{ name: string }>,
+  cards?: Array<{ name: string }>,
+  maps?: Array<{ name: string }>,
+  gems?: Array<{ name: string }>
 };
 
 function normalizeName(n: string): string { return n.trim(); }
@@ -304,6 +536,22 @@ function categoryFromKey(k: keyof CategorySource): string {
     case 'resonators': return 'Resonator';
     case 'deliriumOrbs': return 'Delirium Orb';
     case 'vials': return 'Vial';
+    case 'essences': return 'Essence';
+    case 'cards': return 'Divination Card';
+    case 'maps': return 'Map';
+    case 'gems': return 'Gem';
     default: return 'Other';
   }
+}
+
+function parseEssenceName(typeLine: string | undefined): { base: string; variant?: string } {
+  const s = String(typeLine || '');
+  const m = s.match(/^(\w+)\s+Essence\s+of\s+(.+)/);
+  if (m) {
+    const variant = m[1];
+    const base = `Essence of ${m[2]}`;
+    return { base, variant };
+  }
+  const n = s.includes('Essence of ') ? s.substring(s.indexOf('Essence of ')) : s;
+  return { base: n };
 }

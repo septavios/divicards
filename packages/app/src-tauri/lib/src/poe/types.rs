@@ -47,6 +47,9 @@ impl Item {
     pub fn gem_quality(&self) -> Option<u8> {
         self.0["gemQuality"].as_u64().map(|v| v as u8)
     }
+    pub fn corrupted(&self) -> bool {
+        self.0["corrupted"].as_bool().unwrap_or(false)
+    }
 }
 
 /// Tab from /stashes poe api route, contains only metadata and not items

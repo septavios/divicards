@@ -104,7 +104,27 @@ export class StashTabContainerElement extends LitElement {
                     ? (() => {
                         const isAggregated = (this.tab?.id === 'aggregated-view') || (String(this.tab?.name || '').startsWith('Aggregated'));
                         if (isAggregated) {
-                            return html`<poe-general-priced-list .league=${this.league} .stashLoader=${this.stashLoader} .tab=${this.tab}></poe-general-priced-list>`;
+                            const items = Array.isArray(this.tab?.items) ? this.tab!.items : [];
+                            const looksLikeCards = items.length > 0 && items.every(it => (it as any).frameType === 6);
+                            if (looksLikeCards) {
+                                return html`<poe-divination-stash-list .league=${this.league} .stashLoader=${this.stashLoader} .tab=${this.tab}></poe-divination-stash-list>`;
+                            }
+                            const looksLikeEssence = items.length > 0 && items.every(it => {
+                                const name = String((it as any).typeLine || (it as any).baseType || (it as any).name || '');
+                                return name.includes('Essence');
+                            });
+                            if (looksLikeEssence) {
+                                return html`<poe-essence-stash-list .league=${this.league} .stashLoader=${this.stashLoader} .tab=${this.tab}></poe-essence-stash-list>`;
+                            }
+                            const looksLikeGem = items.length > 0 && items.every(it => {
+                                const ft = (it as any).frameType;
+                                const props = (it as any).properties || [];
+                                const hasGemProp = Array.isArray(props) && props.some((p: any) => p?.name === 'Gem Level' || p?.name === 'Level');
+                                return ft === 4 || hasGemProp;
+                            });
+                            return looksLikeGem
+                                ? html`<poe-gem-stash-list .league=${this.league} .stashLoader=${this.stashLoader} .tab=${this.tab}></poe-gem-stash-list>`
+                                : html`<poe-general-priced-list .league=${this.league} .stashLoader=${this.stashLoader} .tab=${this.tab}></poe-general-priced-list>`;
                         }
                         if ((this.tab.type as unknown as string) === 'DelveStash') {
                             return html`<poe-delve-priced-list .league=${this.league} .stashLoader=${this.stashLoader} .tab=${this.tab}></poe-delve-priced-list>`;

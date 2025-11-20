@@ -198,6 +198,20 @@ export const styles: CSSResult = css`
         gap: 0.3rem;
     }
 
+    .metric-timestamp {
+        font-size: 0.7rem;
+        color: var(--sl-color-neutral-400);
+        margin-top: 0.25rem;
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .metric-timestamp sl-icon {
+        font-size: 0.75rem;
+    }
+
     /* Top Movers Strip */
     .movers-strip {
         display: flex;
@@ -289,41 +303,124 @@ export const styles: CSSResult = css`
 
     .chart-tooltip {
         position: absolute;
-        background: rgba(255, 255, 255, 0.95);
-        border: 1px solid var(--sl-color-neutral-200);
-        border-radius: 0.5rem;
-        padding: 0.5rem 0.75rem;
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        background: rgba(20, 20, 25, 0.95);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 0.75rem;
+        padding: 1rem;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
         pointer-events: none;
-        z-index: 20;
-        font-size: 0.8rem;
-        min-width: 120px;
-        backdrop-filter: blur(8px);
+        z-index: 100;
+        font-size: 0.85rem;
+        min-width: 220px;
+        backdrop-filter: blur(12px);
+        color: #fff;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .tooltip-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        margin-bottom: 0.25rem;
     }
 
     .tooltip-date {
-        color: var(--sl-color-neutral-500);
-        margin-bottom: 0.25rem;
-        font-weight: 600;
-        border-bottom: 1px solid var(--sl-color-neutral-100);
-        padding-bottom: 0.25rem;
+        color: var(--sl-color-neutral-400);
+        font-size: 0.75rem;
+        font-weight: 500;
     }
 
-    .tooltip-row {
+    .tooltip-change {
+        font-weight: 600;
+        font-size: 0.75rem;
+        padding: 0.1rem 0.3rem;
+        border-radius: 0.25rem;
+    }
+    .tooltip-change.positive { color: var(--sl-color-success-400); background: rgba(var(--sl-color-success-500), 0.1); }
+    .tooltip-change.negative { color: var(--sl-color-danger-400); background: rgba(var(--sl-color-danger-500), 0.1); }
+
+    .tooltip-main-value {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .tooltip-main-value .value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        line-height: 1.1;
+        background: linear-gradient(to right, #fff, #ccc);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .tooltip-main-value .unit {
+        font-size: 0.75rem;
+        color: var(--sl-color-neutral-500);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .tooltip-stats {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
+        background: rgba(255, 255, 255, 0.03);
+        padding: 0.5rem;
+        border-radius: 0.5rem;
+    }
+
+    .stat-item {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .stat-item .label {
+        font-size: 0.7rem;
+        color: var(--sl-color-neutral-500);
+    }
+
+    .stat-item .val {
+        font-weight: 600;
+        color: var(--sl-color-neutral-200);
+    }
+
+    .tooltip-categories {
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+    }
+
+    .cat-row {
+        display: flex;
+        flex-direction: column;
+        gap: 0.1rem;
+    }
+
+    .cat-info {
         display: flex;
         justify-content: space-between;
-        gap: 1rem;
-        margin-bottom: 0.1rem;
+        font-size: 0.75rem;
     }
 
-    .tooltip-label {
-        color: var(--sl-color-neutral-500);
+    .cat-name { color: var(--sl-color-neutral-400); }
+    .cat-val { color: var(--sl-color-neutral-200); font-weight: 500; }
+
+    .cat-bar-bg {
+        height: 3px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 2px;
+        overflow: hidden;
     }
 
-    .tooltip-val {
-        font-weight: 700;
-        color: var(--sl-color-neutral-900);
-        font-feature-settings: "tnum";
+    .cat-bar {
+        height: 100%;
+        background: var(--sl-color-primary-500);
+        border-radius: 2px;
     }
 
 	.category-list {
@@ -407,4 +504,173 @@ export const styles: CSSResult = css`
 		background: linear-gradient(90deg, var(--sl-color-primary-500), var(--sl-color-primary-400));
 		border-radius: 99px;
 	}
+
+    /* Price Changes Section */
+    .price-changes-section {
+        background: var(--sl-color-neutral-0);
+        border: 1px solid var(--sl-color-neutral-200);
+        border-radius: 0.75rem;
+        padding: 1rem;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+
+    .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+
+    .section-title {
+        font-weight: 600;
+        color: var(--sl-color-neutral-700);
+        font-size: 0.9rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .section-title sl-icon {
+        color: var(--sl-color-primary-500);
+    }
+
+    .price-changes-empty {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+        color: var(--sl-color-neutral-500);
+        gap: 0.5rem;
+    }
+
+    .price-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .price-stat {
+        background: var(--sl-color-neutral-50);
+        padding: 0.75rem;
+        border-radius: 0.5rem;
+        border: 1px solid var(--sl-color-neutral-200);
+    }
+
+    .price-stat.positive {
+        background: var(--sl-color-success-50);
+        border-color: var(--sl-color-success-200);
+    }
+
+    .price-stat.negative {
+        background: var(--sl-color-danger-50);
+        border-color: var(--sl-color-danger-200);
+    }
+
+    .stat-label {
+        font-size: 0.75rem;
+        color: var(--sl-color-neutral-500);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+    }
+
+    .price-stat.positive .stat-label { color: var(--sl-color-success-700); }
+    .price-stat.negative .stat-label { color: var(--sl-color-danger-700); }
+
+    .stat-value {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--sl-color-neutral-900);
+    }
+
+    .price-stat.positive .stat-value { color: var(--sl-color-success-700); }
+    .price-stat.negative .stat-value { color: var(--sl-color-danger-700); }
+
+    .stat-desc {
+        font-size: 0.75rem;
+        color: var(--sl-color-neutral-500);
+        margin-top: 0.25rem;
+    }
+
+    .price-tables {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 1.5rem;
+    }
+
+    .price-table-container {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .price-table-title {
+        margin: 0;
+        font-size: 0.9rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .price-table-title.positive { color: var(--sl-color-success-600); }
+    .price-table-title.negative { color: var(--sl-color-danger-600); }
+
+    .price-table {
+        border: 1px solid var(--sl-color-neutral-200);
+        border-radius: 0.5rem;
+        overflow: hidden;
+        font-size: 0.8rem;
+    }
+
+    .price-table-header {
+        display: grid;
+        grid-template-columns: 2fr 0.5fr 1fr 1fr 1fr 1fr;
+        background: var(--sl-color-neutral-50);
+        padding: 0.5rem;
+        font-weight: 600;
+        color: var(--sl-color-neutral-600);
+        border-bottom: 1px solid var(--sl-color-neutral-200);
+        gap: 0.5rem;
+    }
+
+    .price-table-row {
+        display: grid;
+        grid-template-columns: 2fr 0.5fr 1fr 1fr 1fr 1fr;
+        padding: 0.5rem;
+        border-bottom: 1px solid var(--sl-color-neutral-100);
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .price-table-row:last-child {
+        border-bottom: none;
+    }
+
+    .item-name {
+        font-weight: 500;
+        color: var(--sl-color-neutral-700);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .item-category {
+        font-size: 0.65rem;
+        color: var(--sl-color-neutral-400);
+        font-weight: 400;
+    }
+
+    .current-price, .price-change, .total-impact {
+        font-variant-numeric: tabular-nums;
+        font-weight: 600;
+    }
+
+    .positive { color: var(--sl-color-success-600); }
+    .negative { color: var(--sl-color-danger-600); }
 `;

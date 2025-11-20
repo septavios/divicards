@@ -44,9 +44,9 @@ export class StashLoader implements IStashLoader {
 		return command('essence_prices', { league });
 	}
 
-	gemPrices(league: League): Promise<Array<{ name: string; level: number; quality: number; chaos_value: number | null }>> {
-		return command('gem_prices', { league });
-	}
+    gemPrices(league: League): Promise<Array<{ name: string; level: number; quality: number; corrupt?: boolean; chaos_value: number | null }>> {
+        return command('gem_prices', { league });
+    }
 
 	oilPrices(league: League): Promise<Array<{ name: string; chaos_value: number | null }>> {
 		return command('oil_prices', { league });
@@ -84,8 +84,40 @@ export class StashLoader implements IStashLoader {
 		return command('wealth_snapshot', { league, tabs });
 	}
 
-	listSnapshots(league: League, limit?: number): Promise<Array<{ timestamp: number; league: string; total_chaos: number; total_divines: number | null; by_category: Record<string, { chaos: number }> }>> {
-		return command('list_snapshots', { league, limit });
+	listSnapshots(
+		league: League,
+		limit?: number,
+		offset?: number,
+		startTimestamp?: number,
+		endTimestamp?: number
+	): Promise<Array<{ timestamp: number; league: string; total_chaos: number; total_divines: number | null; by_category: Record<string, { chaos: number }> }>> {
+		return command('list_snapshots', {
+			league,
+			limit,
+			offset,
+			start_timestamp: startTimestamp,
+			end_timestamp: endTimestamp
+		});
+	}
+
+	countSnapshots(
+		league: League,
+		startTimestamp?: number,
+		endTimestamp?: number
+	): Promise<number> {
+		return command('count_snapshots', {
+			league,
+			start_timestamp: startTimestamp,
+			end_timestamp: endTimestamp
+		});
+	}
+
+	clearSnapshotCache(): Promise<void> {
+		return command('clear_snapshot_cache');
+	}
+
+	deleteAllSnapshots(league?: League): Promise<number> {
+		return command('delete_all_snapshots', { league });
 	}
 
 	wealthSnapshotCached(league: League, tabs: Array<TabWithItems>): Promise<{ timestamp: number; league: string; total_chaos: number; total_divines: number | null; by_category: Record<string, { chaos: number }> }> {
