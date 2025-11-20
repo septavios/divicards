@@ -356,7 +356,27 @@ export class PoeGeneralPricedListElement extends LitElement {
     .corrupted { text-align: center; }
     .price, .total { text-align: right; }
     .row { border-bottom: 1px solid var(--sl-color-gray-200); padding: 6px 0; }
-    .filters-panel { width: 360px; max-width: 80vw; padding: 12px; display: grid; row-gap: 10px; }
+    .filters-panel {
+      width: 360px;
+      max-width: 80vw;
+      padding: 12px;
+      display: grid;
+      row-gap: 10px;
+      background: var(--sl-color-neutral-0);
+      color: var(--sl-color-neutral-900);
+      border: 1px solid var(--sl-color-neutral-200);
+      border-radius: 12px;
+      box-shadow: var(--sl-shadow-x-large);
+      z-index: 5;
+    }
+    .filters-panel sl-select,
+    .filters-panel sl-input {
+      --sl-input-background-color: var(--sl-color-neutral-0);
+      --sl-input-border-color: var(--sl-color-neutral-300);
+      --sl-input-color: var(--sl-color-neutral-900);
+      --sl-panel-background-color: var(--sl-color-neutral-0);
+    }
+    .filters-panel sl-option::part(base) { background: var(--sl-color-neutral-0); }
     .filters-panel h4 { margin: 0; font-size: 0.95rem; }
     .divider { height: 1px; background: var(--sl-color-gray-200); margin: 4px 0; }
     .grid-2 { display: grid; grid-template-columns: 1fr 1fr; column-gap: 8px; }
