@@ -80,7 +80,8 @@ export interface Commands {
         total_divines: number | null;
         by_category: Record<string, { chaos: number }>;
     };
-    clear_snapshots: (args: { league: League }) => void;
+    
+    
 }
 
 const { format } = new Intl.NumberFormat();
@@ -397,15 +398,8 @@ async function mockInvoke(name: string, arg: Record<string, unknown>): Promise<u
             await persistWebDb();
             return snapshot;
         }
-        case 'clear_snapshots': {
-            const league = (arg?.league as string) ?? 'Standard';
-            const db = await getWebDb();
-            const stmt = db.prepare('DELETE FROM snapshots WHERE league = ?');
-            stmt.run([league]);
-            stmt.free();
-            await persistWebDb();
-            return;
-        }
+        
+        
         case 'google_logout':
             return;
         case 'google_identity':

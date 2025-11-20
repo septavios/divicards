@@ -239,10 +239,7 @@ export class StashesViewElement extends LitElement {
 			await this.#bulkLoadAllTabs();
 		});
 
-		this.addEventListener('stashes__clear-cache', async e => {
-			e.stopPropagation();
-			await this.#clearAllCache();
-		});
+        
 		this.addEventListener('stashes__force-reload-selected', e => {
 			e.stopPropagation();
 			this.#onLoadItemsClicked();
@@ -646,51 +643,7 @@ export class StashesViewElement extends LitElement {
 		}
 	}
 
-	async #clearAllCache(): Promise<void> {
-		try {
-			// 1. Reset all loading states (fixes "stuck" issues)
-			this.fetchingStashTab = false;
-			this.bulkLoading = false;
-			this.bulkProgress = null;
-			this.msg = '';
-
-			// 2. Clear tabs cache (assign new Map for reactivity)
-			this.tabsCache = new Map();
-
-			// 3. Reset UI State (New User Experience)
-			this.selected_tabs = new Map();
-			this.opened_tab = null;
-			this.chartMode = 'chaos';
-			this.chartRange = 'all';
-			this.showWealth = false;
-			this.snapshots = [];
-			this.dispatchEvent(new SelectedTabsChangeEvent(this.selected_tabs));
-
-			// 4. Clear snapshots from storage (graceful fallback)
-			if (this.stashLoader) {
-				try {
-					await (this.stashLoader as any).clearSnapshots(this.league);
-				} catch (e) {
-					console.warn('Backend does not support clearing snapshots history', e);
-				}
-			}
-
-			// 5. Reload snapshots to update UI (should be empty)
-			try {
-				await this.#loadSnapshots();
-			} catch (e) {
-				console.warn('Failed to reload snapshots', e);
-			}
-
-			this.#toast('success', 'Cache and history cleared');
-			this.msg = 'Cache and history cleared';
-			this.requestUpdate();
-		} catch (err) {
-			const msg = err instanceof Error ? err.message : 'Failed to clear cache';
-			this.#toast('danger', msg);
-			this.msg = msg;
-		}
-	}
+    
 
 	async #loadSnapshots(): Promise<void> {
 		if (!this.stashLoader) return;
@@ -699,7 +652,6 @@ export class StashesViewElement extends LitElement {
 			const rows = await (this.stashLoader as any).listSnapshots(this.league, 20);
 			const sorted = Array.isArray(rows) ? [...rows].sort((a, b) => b.timestamp - a.timestamp) : [];
 			this.snapshots = sorted;
-			// Show wealth dashboard only if there are snapshots
 			this.showWealth = this.snapshots.length > 0;
 			this.msg = '';
 			// toast('success', 'Snapshots refreshed'); // redundant

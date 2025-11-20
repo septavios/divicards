@@ -24,5 +24,11 @@ export const toast = (variant: ToastVariant, message: string) => {
 	});
 
 	alert.append(icon, message);
-	alert.toast();
+    if (typeof (alert as any).toast === 'function') {
+        (alert as any).toast();
+    } else {
+        document.body.appendChild(alert);
+    }
 };
+import '@shoelace-style/shoelace/dist/components/alert/alert.js';
+import '@shoelace-style/shoelace/dist/components/icon/icon.js';

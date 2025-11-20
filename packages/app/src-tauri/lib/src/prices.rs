@@ -3,7 +3,7 @@ use crate::{
     event::{Event, ToastVariant},
 };
 use divi::{prices::Prices, Error as DiviError, TradeLeague};
-use ninja::{fetch_by_item_category, fetch_currency_by_category, fetch_stash_currency_overview, fetch_stash_item_overview, fetch_stash_dense_overviews_raw};
+use ninja::{fetch_stash_currency_overview, fetch_stash_item_overview, fetch_stash_dense_overviews_raw};
 use serde_json::Value;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fs, path::PathBuf};
@@ -377,7 +377,7 @@ pub async fn gem_prices(league: TradeLeague) -> Result<Vec<GemPrice>, Error> {
     let ttl_secs = GEM_TTL_SECS.get_or_init(|| AtomicU64::new(60 * 15)).load(Ordering::Relaxed);
     let cache = GEM_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
     {
-        let mut guard = cache.lock().unwrap();
+        let guard = cache.lock().unwrap();
         if let Some((data, ts)) = guard.get(&league).cloned() {
             if ts.elapsed().as_secs() < ttl_secs {
                 info!(league = %league, count = data.len(), "gem_prices cached");

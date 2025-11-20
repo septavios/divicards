@@ -55,9 +55,9 @@ fn ensure_db() -> Result<Connection, Error> {
 pub async fn wealth_snapshot(
     league: TradeLeague,
     tabs: Vec<TabRef>,
-    prices_state: State<'_, Mutex<prices::AppCardPrices>>,
+    _prices_state: State<'_, Mutex<prices::AppCardPrices>>,
     version: State<'_, AppVersion>,
-    window: Window,
+    _window: Window,
 ) -> Result<WealthSnapshot, Error> {
     let ll: League = league.clone().into();
 
@@ -118,26 +118,34 @@ pub async fn wealth_snapshot(
         for item in tab.items() {
             let name = item.base_type().unwrap_or("").to_string();
             let qty = item.stack_size().unwrap_or(1) as f32;
-            let mut category = String::from("other");
-            let mut price: Option<f32> = None;
-            match kind {
-                StashType::CurrencyStash => { category = String::from("currency"); price = currency_map.get(&name).copied(); }
-                StashType::FragmentStash => { category = String::from("fragments"); price = frags_map.get(&name).copied(); }
-                StashType::DivinationCardStash => { category = String::from("cards"); price = cards_map.get(&name).copied(); }
+            let mut category = match kind {
+                StashType::CurrencyStash => String::from("currency"),
+                StashType::FragmentStash => String::from("fragments"),
+                StashType::DivinationCardStash => String::from("cards"),
+                StashType::MapStash => String::from("maps"),
+                StashType::EssenceStash => String::from("essences"),
+                _ => String::from("other"),
+            };
+            let mut price: Option<f32> = match kind {
+                StashType::CurrencyStash => currency_map.get(&name).copied(),
+                StashType::FragmentStash => frags_map.get(&name).copied(),
+                StashType::DivinationCardStash => cards_map.get(&name).copied(),
                 StashType::MapStash => {
-                    category = String::from("maps");
                     let tier = item.map_tier().unwrap_or(0);
-                    price = maps_map.get(&(name.clone(), tier)).copied().or_else(|| maps_map.get(&(name.clone(), 0)).copied());
+                    maps_map
+                        .get(&(name.clone(), tier))
+                        .copied()
+                        .or_else(|| maps_map.get(&(name.clone(), 0)).copied())
                 }
-                StashType::EssenceStash => { category = String::from("essences"); price = fossils_map.get(&name).copied(); }
-                _ => {
-                    price = oils_map.get(&name).copied()
-                        .or_else(|| incubators_map.get(&name).copied())
-                        .or_else(|| resonators_map.get(&name).copied())
-                        .or_else(|| delirium_map.get(&name).copied())
-                        .or_else(|| vials_map.get(&name).copied());
-                }
-            }
+                StashType::EssenceStash => fossils_map.get(&name).copied(),
+                _ => oils_map
+                    .get(&name)
+                    .copied()
+                    .or_else(|| incubators_map.get(&name).copied())
+                    .or_else(|| resonators_map.get(&name).copied())
+                    .or_else(|| delirium_map.get(&name).copied())
+                    .or_else(|| vials_map.get(&name).copied()),
+            };
             if price.is_none() {
                 if let Some(v) = gems_map.get(&(name.clone(), item.gem_level().unwrap_or(0), item.gem_quality().unwrap_or(0))).copied() {
                     category = String::from("gems");
@@ -175,8 +183,8 @@ pub async fn wealth_snapshot(
 pub async fn wealth_snapshot_cached(
     league: TradeLeague,
     tabs: Vec<crate::poe::types::TabWithItems>,
-    prices_state: State<'_, Mutex<prices::AppCardPrices>>, // kept for parity
-    window: Window,
+    _prices_state: State<'_, Mutex<prices::AppCardPrices>>, // kept for parity
+    _window: Window,
 ) -> Result<WealthSnapshot, Error> {
     let currency_prices = prices::currency_prices(league.clone()).await.unwrap_or_default();
     let fragment_prices = prices::fragment_prices(league.clone()).await.unwrap_or_default();
@@ -223,26 +231,34 @@ pub async fn wealth_snapshot_cached(
         for item in tab.items() {
             let name = item.base_type().unwrap_or("").to_string();
             let qty = item.stack_size().unwrap_or(1) as f32;
-            let mut category = String::from("other");
-            let mut price: Option<f32> = None;
-            match kind {
-                crate::poe::types::StashType::CurrencyStash => { category = String::from("currency"); price = currency_map.get(&name).copied(); }
-                crate::poe::types::StashType::FragmentStash => { category = String::from("fragments"); price = frags_map.get(&name).copied(); }
-                crate::poe::types::StashType::DivinationCardStash => { category = String::from("cards"); price = cards_map.get(&name).copied(); }
+            let mut category = match kind {
+                crate::poe::types::StashType::CurrencyStash => String::from("currency"),
+                crate::poe::types::StashType::FragmentStash => String::from("fragments"),
+                crate::poe::types::StashType::DivinationCardStash => String::from("cards"),
+                crate::poe::types::StashType::MapStash => String::from("maps"),
+                crate::poe::types::StashType::EssenceStash => String::from("essences"),
+                _ => String::from("other"),
+            };
+            let mut price: Option<f32> = match kind {
+                crate::poe::types::StashType::CurrencyStash => currency_map.get(&name).copied(),
+                crate::poe::types::StashType::FragmentStash => frags_map.get(&name).copied(),
+                crate::poe::types::StashType::DivinationCardStash => cards_map.get(&name).copied(),
                 crate::poe::types::StashType::MapStash => {
-                    category = String::from("maps");
                     let tier = item.map_tier().unwrap_or(0);
-                    price = maps_map.get(&(name.clone(), tier)).copied().or_else(|| maps_map.get(&(name.clone(), 0)).copied());
+                    maps_map
+                        .get(&(name.clone(), tier))
+                        .copied()
+                        .or_else(|| maps_map.get(&(name.clone(), 0)).copied())
                 }
-                crate::poe::types::StashType::EssenceStash => { category = String::from("essences"); price = fossils_map.get(&name).copied(); }
-                _ => {
-                    price = oils_map.get(&name).copied()
-                        .or_else(|| incubators_map.get(&name).copied())
-                        .or_else(|| resonators_map.get(&name).copied())
-                        .or_else(|| delirium_map.get(&name).copied())
-                        .or_else(|| vials_map.get(&name).copied());
-                }
-            }
+                crate::poe::types::StashType::EssenceStash => fossils_map.get(&name).copied(),
+                _ => oils_map
+                    .get(&name)
+                    .copied()
+                    .or_else(|| incubators_map.get(&name).copied())
+                    .or_else(|| resonators_map.get(&name).copied())
+                    .or_else(|| delirium_map.get(&name).copied())
+                    .or_else(|| vials_map.get(&name).copied()),
+            };
             if price.is_none() {
                 if let Some(v) = gems_map.get(&(name.clone(), item.gem_level().unwrap_or(0), item.gem_quality().unwrap_or(0))).copied() {
                     category = String::from("gems");
@@ -299,12 +315,6 @@ pub async fn list_snapshots(
     Ok(out)
 }
 
-#[command]
-pub async fn clear_snapshots(league: TradeLeague) -> Result<(), Error> {
-    let conn = ensure_db()?;
-    conn.execute(
-        "DELETE FROM snapshots WHERE league = ?1",
-        params![format!("{}", league)],
-    )?;
-    Ok(())
-}
+ 
+
+ 

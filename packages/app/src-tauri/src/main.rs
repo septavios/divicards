@@ -62,7 +62,8 @@ async fn main() {
             lib::wealth::wealth_snapshot,
             lib::wealth::wealth_snapshot_cached,
             lib::wealth::list_snapshots,
-            lib::wealth::clear_snapshots,
+            
+            
             poe::auth::poe_auth,
             poe::auth::poe_logout,
             poe::auth::poe_has_token,

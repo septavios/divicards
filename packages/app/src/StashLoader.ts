@@ -92,9 +92,7 @@ export class StashLoader implements IStashLoader {
 		return command('wealth_snapshot_cached', { league, tabs });
 	}
 
-	clearSnapshots(league: League): Promise<void> {
-		return command('clear_snapshots', { league });
-	}
+
 
 	async tabs(league: League | string): Promise<NoItemsTab[]> {
 		const { stashes = [] } = await command('stashes', { league });

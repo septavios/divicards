@@ -91,36 +91,7 @@ const bulkLoadStash = async () => {
     stashesViewRef.value?.dispatchEvent(new Event('stashes__bulk-load-all'));
 };
 
-const handleClearCache = async () => {
-    // Show confirmation dialog
-    const confirmed = confirm('Are you sure you want to clear all cached tabs and snapshot history? This cannot be undone.');
-    if (!confirmed) return;
-
-    try {
-        // Show loading indicator
-        toast('info', 'Clearing cache and history...');
-        
-        // First hide the UI to prevent any new data from being added
-        stashVisible.value = false;
-        bulkMode.value = false;
-        
-        // Clear all data immediately
-        tabsWithItems.value = [];
-        selectedIds.value = [];
-        
-        // Dispatch event to clear cache in the stashes view
-        stashesViewRef.value?.dispatchEvent(new Event('stashes__clear-cache'));
-        
-        // Give it a moment to process
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // Show success message
-        toast('success', 'Cache and history cleared successfully');
-    } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to clear cache';
-        toast('danger', message);
-    }
-};
+// removed: legacy clear-all-history handler
 
 const handleToast = (e: CustomEvent) => {
     const { variant, message } = e.detail;
@@ -292,7 +263,6 @@ async function export_sample({
 }
 
 const handle_stashtab_fetched = (e: StashtabFetchedEvent) => {
-	// Only add items if stash is visible (prevents adding after clear)
 	if (!stashVisible.value) return;
 	e.$stashtab.items.sort((a, b) => (b.stackSize ?? 0) - (a.stackSize ?? 0));
 	tabsWithItems.value.push(e.$stashtab);
@@ -364,12 +334,7 @@ const handleDropZoneDrop = (event: DragEvent) => {
                     >Load from Stash</sl-button
                 >
                 <sl-button variant="default" @click="bulkLoadStash">Bulk load Stash</sl-button>
-                <sl-tooltip content="Clear all cached tabs and snapshot history">
-                    <sl-button variant="danger" @click="handleClearCache">
-                        <sl-icon slot="prefix" name="trash"></sl-icon>
-                        Clear all history
-                    </sl-button>
-                </sl-tooltip>
+                
                 <e-import-file-tip v-if="!isDragging && shouldShowImportActions"></e-import-file-tip>
             </div>
             <div class="toolbar__right">
