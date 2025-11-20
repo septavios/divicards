@@ -298,3 +298,13 @@ pub async fn list_snapshots(
     for r in rows { out.push(r?); }
     Ok(out)
 }
+
+#[command]
+pub async fn clear_snapshots(league: TradeLeague) -> Result<(), Error> {
+    let conn = ensure_db()?;
+    conn.execute(
+        "DELETE FROM snapshots WHERE league = ?1",
+        params![format!("{}", league)],
+    )?;
+    Ok(())
+}

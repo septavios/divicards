@@ -647,10 +647,6 @@ export class StashesViewElement extends LitElement {
 	}
 
 	async #clearAllCache(): Promise<void> {
-		// Confirm with user before clearing
-		const confirmed = confirm('Are you sure you want to clear all cached tabs and snapshot history? This cannot be undone.');
-		if (!confirmed) return;
-
 		try {
 			// 1. Reset all loading states (fixes "stuck" issues)
 			this.fetchingStashTab = false;
@@ -703,9 +699,8 @@ export class StashesViewElement extends LitElement {
 			const rows = await (this.stashLoader as any).listSnapshots(this.league, 20);
 			const sorted = Array.isArray(rows) ? [...rows].sort((a, b) => b.timestamp - a.timestamp) : [];
 			this.snapshots = sorted;
-			if (this.snapshots.length) {
-				this.showWealth = true;
-			}
+			// Show wealth dashboard only if there are snapshots
+			this.showWealth = this.snapshots.length > 0;
 			this.msg = '';
 			// toast('success', 'Snapshots refreshed'); // redundant
 		} catch (err) {

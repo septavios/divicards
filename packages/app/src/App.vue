@@ -39,8 +39,11 @@ const dropZoneRef = shallowRef<HTMLElement | null>(null);
 const sampleStore = useSampleStore();
 const authStore = useAuthStore();
 const googleAuthStore = useGoogleAuthStore();
-authStore.init();
-googleAuthStore.init();
+
+// Initialize both auth stores in parallel to reduce keychain prompts from 2 to 1
+Promise.all([authStore.init(), googleAuthStore.init()]).catch(err => {
+    console.warn('Failed to initialize auth stores:', err);
+});
 const stashVisible = ref(false);
 const shouldShowImportActions = computed(() => !stashVisible.value || !authStore.loggedIn);
 const { releaseUrl, tag } = useAppVersion();
@@ -88,8 +91,35 @@ const bulkLoadStash = async () => {
     stashesViewRef.value?.dispatchEvent(new Event('stashes__bulk-load-all'));
 };
 
-const handleClearCache = () => {
-    stashesViewRef.value?.dispatchEvent(new Event('stashes__clear-cache'));
+const handleClearCache = async () => {
+    // Show confirmation dialog
+    const confirmed = confirm('Are you sure you want to clear all cached tabs and snapshot history? This cannot be undone.');
+    if (!confirmed) return;
+
+    try {
+        // Show loading indicator
+        toast('info', 'Clearing cache and history...');
+        
+        // First hide the UI to prevent any new data from being added
+        stashVisible.value = false;
+        bulkMode.value = false;
+        
+        // Clear all data immediately
+        tabsWithItems.value = [];
+        selectedIds.value = [];
+        
+        // Dispatch event to clear cache in the stashes view
+        stashesViewRef.value?.dispatchEvent(new Event('stashes__clear-cache'));
+        
+        // Give it a moment to process
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Show success message
+        toast('success', 'Cache and history cleared successfully');
+    } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to clear cache';
+        toast('danger', message);
+    }
 };
 
 const handleToast = (e: CustomEvent) => {
@@ -262,6 +292,8 @@ async function export_sample({
 }
 
 const handle_stashtab_fetched = (e: StashtabFetchedEvent) => {
+	// Only add items if stash is visible (prevents adding after clear)
+	if (!stashVisible.value) return;
 	e.$stashtab.items.sort((a, b) => (b.stackSize ?? 0) - (a.stackSize ?? 0));
 	tabsWithItems.value.push(e.$stashtab);
 };
@@ -335,7 +367,7 @@ const handleDropZoneDrop = (event: DragEvent) => {
                 <sl-tooltip content="Clear all cached tabs and snapshot history">
                     <sl-button variant="danger" @click="handleClearCache">
                         <sl-icon slot="prefix" name="trash"></sl-icon>
-                        Clear Cache
+                        Clear all history
                     </sl-button>
                 </sl-tooltip>
                 <e-import-file-tip v-if="!isDragging && shouldShowImportActions"></e-import-file-tip>
