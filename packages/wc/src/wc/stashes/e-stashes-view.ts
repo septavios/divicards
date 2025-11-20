@@ -37,6 +37,7 @@ import { DefineComponent } from 'vue';
 import { VueEventHandlers } from '../../event-utils.js';
 import { MultiselectChangeEvent } from './e-tab-badge-group/events.js';
 import { TabClickEvent } from './e-tab-badge/events.js';
+import { categoryFromKey } from './poe-general-priced-list.js';
 
 const SECS_300 = 300 * 1000;
 
@@ -83,6 +84,7 @@ export class StashesViewElement extends LitElement {
 	@state() cardsJustExtracted = false;
 	@state() showWealth = false;
 	@state() hoveredSnapshot: { x: number; y: number; snapshot: any; index: number; align: 'center' | 'left' | 'right' } | null = null;
+	@state() snapshotsLoading = false;
 	@state() bulkProgress: { loaded: number; total: number; name: string } | null = null;
 	@state() chartMode: 'chaos' | 'divine' = 'chaos';
 	@state() chartRange: 'all' | 'recent' = 'all';
@@ -200,13 +202,19 @@ export class StashesViewElement extends LitElement {
 		for (const id of selectedIds) {
 			const cached = this.#getCachedTab(id);
 			if (cached && cached.items) {
-				items.push(...cached.items);
+				cached.items.forEach(it => {
+					const withTab = { ...(it as any), tabIndex: cached.index } as any;
+					items.push(withTab);
+				});
 			}
 		}
 
 		// Don't show aggregated table if we have no items yet
 		if (items.length === 0) {
-			return nothing;
+			return html`<e-stash-tab-container
+				status="pending"
+				@e-stash-tab-container__close=${this.#handleTabContainerClose}
+			></e-stash-tab-container>`;
 		}
 
 		// Create a synthetic tab for aggregation
@@ -260,6 +268,10 @@ export class StashesViewElement extends LitElement {
 			this.msg = '';
 			this.selected_tabs = new Map();
 			this.errors = [];
+			this.#loadSnapshots();
+		}
+		if (map.has('stashLoader') && this.stashLoader) {
+			this.#loadSnapshots();
 		}
 	}
 
@@ -274,22 +286,25 @@ export class StashesViewElement extends LitElement {
 		return html`<div class="main-stashes-component">
 			<header class="header">
                 <div class="header-left">
-                    ${this.stashtabs_badges.length
-				? html`
-                                <div>
-                                    ${this.fetchingStashTab
-						? html`<sl-button><sl-spinner></sl-spinner></sl-button>`
-						: nothing}
-                                </div>
-                          `
-				: html`<div>
-                                ${this.fetchingStash
-						? html`<sl-button size="small"><sl-spinner></sl-spinner></sl-button>`
-						: nothing}
-                          </div> `}
+                    <div>
+                        ${(!this.bulkProgress && (this.fetchingStashTab || this.fetchingStash)) ? html`<sl-spinner></sl-spinner>` : nothing}
+                    </div>
                 </div>
                 
                 <div class="header-right">
+                    ${this.bulkProgress ? html`
+                        <div class="bulk-progress-inline">
+                            <div class="bulk-row">
+                                <sl-spinner></sl-spinner>
+                                <span class="bulk-text">
+                                    ${this.msg ? this.msg : `Loading ${this.bulkProgress.name} (${this.bulkProgress.loaded}/${this.bulkProgress.total})...`}
+                                </span>
+                            </div>
+                            <div class="bulk-bar">
+                                <div class="bulk-fill" style="width: ${Math.max(0, Math.min(100, Math.round((this.bulkProgress.loaded / Math.max(1, this.bulkProgress.total)) * 100)))}%"></div>
+                            </div>
+                        </div>
+                    ` : nothing}
                     <div class="snapshot-controls">
                          <div class="loads-available">
                             Loads: <span class="loads-available__value">${this.stashLoadsAvailable}</span>
@@ -346,31 +361,21 @@ export class StashesViewElement extends LitElement {
                     
                     <sl-button size="small" @click=${this.#onCloseClicked} class="btn-close">Close</sl-button>
                 </div>
-			</header>
-			<div class="messages">
-				${this.bulkProgress ? html`
-					<div class="bulk-progress">
-						<div class="bulk-row">
-							<sl-spinner></sl-spinner>
-							<span class="bulk-text">
-								${this.msg ? this.msg : `Loading ${this.bulkProgress.name} (${this.bulkProgress.loaded}/${this.bulkProgress.total})...`}
-							</span>
-						</div>
-						<div class="bulk-bar">
-							<div class="bulk-fill" style="width: ${Math.max(0, Math.min(100, Math.round((this.bulkProgress.loaded / Math.max(1, this.bulkProgress.total)) * 100)))}%"></div>
-						</div>
-					</div>
-				` : html`<p class="msg">${this.msg}</p>`}
-				<p class="msg">${this.noStashesMessage}</p>
-				${this.errors.length
-				? html`<e-stash-tab-errors
-							@upd:hoveredErrorTabId=${this.#handleUpdHoveredError}
-							@upd:errors=${this.#handleUpdErrors}
-							.errors=${this.errors}
-					  ></e-stash-tab-errors>`
+            </header>
+            <div class="messages">
+                <p class="msg">${this.msg}</p>
+                <p class="msg">${this.noStashesMessage}</p>
+                ${this.errors.length
+                ? html`<e-stash-tab-errors
+                            @upd:hoveredErrorTabId=${this.#handleUpdHoveredError}
+                            @upd:errors=${this.#handleUpdErrors}
+                            .errors=${this.errors}
+                      ></e-stash-tab-errors>`
+                : nothing}
+            </div>
+			${(this.snapshotsLoading || (this.showWealth && this.snapshots.length))
+				? (this.snapshots.length ? this.#renderWealthDashboard() : this.#renderWealthSkeleton())
 				: nothing}
-			</div>
-            ${this.showWealth && this.snapshots.length ? this.#renderWealthDashboard() : nothing}
                 <e-tab-badge-group
                 	.stashes=${this.stashtabs_badges}
                 	.selected_tabs=${this.selected_tabs}
@@ -495,6 +500,20 @@ export class StashesViewElement extends LitElement {
 		this.dispatchEvent(new SelectedTabsChangeEvent(this.selected_tabs));
 		if (this.multiselect && this.selected_tabs.size === 0) {
 			this.opened_tab = null;
+		}
+		if (this.multiselect && this.selected_tabs.size > 0) {
+			const ids = Array.from(this.selected_tabs.keys());
+			const cachedTabs: Array<TabWithItems> = ids
+				.map(id => this.#getCachedTab(id))
+				.filter((t): t is TabWithItems => t !== null);
+			const allCached = cachedTabs.length === ids.length && cachedTabs.every(t => Array.isArray(t.items) && t.items.length > 0);
+			if (!allCached && !this.fetchingStashTab) {
+				const prev = this.downloadAs;
+				this.downloadAs = 'general-tab';
+				this.#load_selected_tabs(this.league).finally(() => {
+					this.downloadAs = prev;
+				});
+			}
 		}
 	}
 	#handle_tab_badge_click(e: TabClickEvent): void {
@@ -662,6 +681,7 @@ export class StashesViewElement extends LitElement {
 
 	async #loadSnapshots(): Promise<void> {
 		if (!this.stashLoader) return;
+		this.snapshotsLoading = true;
 		this.msg = 'Refreshing snapshots...';
 		try {
 			const rows = await (this.stashLoader as any).listSnapshots(this.league, 20);
@@ -669,10 +689,11 @@ export class StashesViewElement extends LitElement {
 			this.snapshots = sorted;
 			this.showWealth = this.snapshots.length > 0;
 			this.msg = '';
-			// toast('success', 'Snapshots refreshed'); // redundant
 		} catch (err) {
 			this.msg = this.#errorMessage(err);
 			this.#toast('danger', this.msg);
+		} finally {
+			this.snapshotsLoading = false;
 		}
 	}
 
@@ -767,7 +788,7 @@ export class StashesViewElement extends LitElement {
 		const total = snapshot.total_chaos || 1;
 		const entries = Object.entries(snapshot.by_category || {})
 			.map(([name, data]: [string, any]) => ({
-				name: name.charAt(0).toUpperCase() + name.slice(1),
+				name: categoryFromKey(name),
 				value: data.chaos || 0,
 				percent: ((data.chaos || 0) / total) * 100
 			}))
@@ -837,6 +858,9 @@ export class StashesViewElement extends LitElement {
 		const chaosSign = chaosDiff > 0 ? '+' : '';
 		const trendIcon = chaosDiff > 0 ? 'arrow-up-short' : chaosDiff < 0 ? 'arrow-down-short' : 'dash';
 
+		const catCount = Object.keys(latest.by_category || {}).length;
+		const sizeClass = catCount <= 4 ? 'size-large' : catCount <= 8 ? 'size-medium' : 'size-compact';
+
 		// Stats calculations
 		let rate = 0;
 		let durationStr = '0m';
@@ -860,7 +884,7 @@ export class StashesViewElement extends LitElement {
 		}
 
 		return html`
-            <section class="wealth-history">
+			<section class="wealth-history">
                 <div class="metrics-grid">
                     <!-- Total Chaos -->
                     <div class="metric-card">
@@ -911,25 +935,23 @@ export class StashesViewElement extends LitElement {
                 ${this.#renderTopMoversStrip(latest, prev)}
 
                 <!-- Price Changes Section -->
-                ${this.selected_tabs.size > 0 ? html`
-                    <div class="price-changes-section">
-                        <div class="section-header">
-                            <span class="section-title">
-                                <sl-icon name="graph-up"></sl-icon>
-                                Price Variance Analysis
-                            </span>
-                            <sl-button 
-                                size="small" 
-                                @click=${this.#togglePriceChanges}
-                                variant=${this.showPriceChanges ? 'primary' : 'default'}
-                            >
-                                <sl-icon name="currency-exchange" slot="prefix"></sl-icon>
-                                ${this.showPriceChanges ? 'Hide' : 'Compare Prices'}
-                            </sl-button>
-                        </div>
-                        ${this.showPriceChanges ? this.#renderPriceChanges() : nothing}
+                <div class="price-changes-section">
+                    <div class="section-header">
+                        <span class="section-title">
+                            <sl-icon name="graph-up"></sl-icon>
+                            Price Variance Analysis
+                        </span>
+                        <sl-button 
+                            size="small" 
+                            @click=${this.#togglePriceChanges}
+                            variant=${this.showPriceChanges ? 'primary' : 'default'}
+                        >
+                            <sl-icon name="currency-exchange" slot="prefix"></sl-icon>
+                            ${this.showPriceChanges ? 'Hide' : 'Compare Prices'}
+                        </sl-button>
                     </div>
-                ` : nothing}
+                    ${this.showPriceChanges ? this.#renderPriceChanges() : nothing}
+                </div>
 
                 <div class="charts">
                     <div class="chart-container">
@@ -961,10 +983,31 @@ export class StashesViewElement extends LitElement {
                     </div>
                 </div>
                 
-                <div class="category-list">
-                    ${this.#renderCategoryList(latest)}
-                </div>
-            </section>
+				<div class="category-list ${sizeClass}">
+					${this.#renderCategoryList(latest)}
+				</div>
+			</section>
+		`;
+	}
+
+	#renderWealthSkeleton() {
+		return html`
+			<section class="wealth-history loading">
+				<div class="metrics-grid">
+					<div class="metric-card"><div class="skeleton-title"></div><div class="skeleton-value"></div><div class="skeleton-sub"></div></div>
+					<div class="metric-card"><div class="skeleton-title"></div><div class="skeleton-value"></div><div class="skeleton-sub"></div></div>
+					<div class="metric-card"><div class="skeleton-title"></div><div class="skeleton-value"></div><div class="skeleton-sub"></div></div>
+					<div class="metric-card"><div class="skeleton-title"></div><div class="skeleton-value"></div><div class="skeleton-sub"></div></div>
+				</div>
+				<div class="charts">
+					<div class="chart-container">
+						<div class="skeleton-chart"></div>
+					</div>
+					<div class="chart-container">
+						<div class="skeleton-chart"></div>
+					</div>
+				</div>
+			</section>
 		`;
 	}
 
@@ -1012,12 +1055,27 @@ export class StashesViewElement extends LitElement {
 	}
 
 	async #calculatePriceChanges() {
-		if (!this.stashLoader || this.selected_tabs.size === 0 || this.snapshots.length === 0) {
+		if (!this.stashLoader || this.snapshots.length === 0) {
 			this.priceChangesData = [];
 			return;
 		}
 
 		try {
+			// If no tabs selected, fallback to snapshot-only category breakdown
+			if (this.selected_tabs.size === 0) {
+				this.priceChangeMode = 'category';
+				const latest = this.snapshots[0];
+				const snapshotCats = latest.by_category || {};
+				const rows = Object.entries(snapshotCats)
+					.map(([category, v]) => {
+						const snapshotTotal = (v as any)?.chaos || 0;
+						return { category, snapshotTotal, currentTotal: snapshotTotal, diff: 0, diffPercent: 0, topItems: [] };
+					})
+					.sort((a, b) => b.snapshotTotal - a.snapshotTotal);
+				this.priceChangesData = rows;
+				return;
+			}
+
 			// Get current prices
 			const [currency, fragments, oils, incubators, fossils, resonators, deliriumOrbs, vials, cards, maps, gems] = await Promise.all([
 				this.stashLoader.currencyPrices(this.league),
@@ -1130,7 +1188,7 @@ export class StashesViewElement extends LitElement {
 					const changePercent = snapshotPrice > 0 ? (change / snapshotPrice) * 100 : (currentPrice > 0 ? 100 : 0);
 					const totalChange = change * itemData.qty;
 
-					if (Math.abs(totalChange) > 1) {
+					if (Math.abs(totalChange) >= 0) {
 						changes.push({
 							name: itemData.name,
 							category: itemData.category,
@@ -1195,7 +1253,7 @@ export class StashesViewElement extends LitElement {
 					const diffPercent = snapshotTotal > 0 ? (diff / snapshotTotal) * 100 : 0;
 					const topItems = current?.items.sort((a, b) => b.total - a.total).slice(0, 5) || [];
 
-					if (Math.abs(diff) > 1) {
+					if (Math.abs(diff) >= 0) {
 						changes.push({
 							category: cat,
 							snapshotTotal,
@@ -1331,15 +1389,15 @@ export class StashesViewElement extends LitElement {
 				</div>
 			`;
 		} else {
-			// Category Mode
-			const significant = this.priceChangesData.filter(c => Math.abs(c.diff) > 10);
+			const rows = this.priceChangesData.slice(0, 12);
+			const totalVariance = this.priceChangesData.reduce((acc, c) => acc + c.diff, 0);
 			return html`
 				<div class="price-changes-content">
 					<div class="price-stats">
 						<div class="price-stat">
 							<div class="stat-label">Total Variance</div>
-							<div class="stat-value ${significant.reduce((acc, c) => acc + c.diff, 0) >= 0 ? 'positive' : 'negative'}">
-								${significant.reduce((acc, c) => acc + c.diff, 0) >= 0 ? '+' : ''}${Math.round(significant.reduce((acc, c) => acc + c.diff, 0)).toLocaleString()}c
+							<div class="stat-value ${totalVariance >= 0 ? 'positive' : 'negative'}">
+								${totalVariance >= 0 ? '+' : ''}${Math.round(totalVariance).toLocaleString()}c
 							</div>
 							<div class="stat-desc">Net difference (Live - Snapshot)</div>
 						</div>
@@ -1358,7 +1416,7 @@ export class StashesViewElement extends LitElement {
 								<div>Diff</div>
 								<div>%</div>
 							</div>
-							${significant.map(cat => html`
+							${rows.map(cat => html`
 								<div class="price-table-row" style="grid-template-columns: 2fr 1fr 1fr 1fr 1fr;">
 									<div class="item-name">
 										${cat.category}
@@ -1462,7 +1520,7 @@ export class StashesViewElement extends LitElement {
 		}
 		if (bars) {
 			const latest = this.snapshots[0];
-			const entries = Object.entries(latest.by_category || {}).map(([k, v]) => ({ name: k, value: v.chaos || 0 }));
+			const entries = Object.entries(latest.by_category || {}).map(([k, v]) => ({ name: categoryFromKey(k), value: v.chaos || 0 }));
 			entries.sort((a, b) => b.value - a.value);
 			this.#drawBars(bars, entries.slice(0, 10));
 		}

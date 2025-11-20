@@ -10,8 +10,8 @@ export const styles: CSSResult = css`
 	.main-stashes-component {
 		position: relative;
         display: flex;
-        flex-direction: column;
-        gap: 1rem;
+    flex-direction: column;
+        gap: 0.5rem;
 	}
 
 	wc-help-tip::part(tooltip) {
@@ -23,10 +23,10 @@ export const styles: CSSResult = css`
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-        gap: 1rem;
+        gap: 0.5rem;
         background: var(--sl-color-neutral-0);
-        padding: 0.75rem 1rem;
-        border-radius: 0.75rem;
+        padding: 0.5rem 0.75rem;
+        border-radius: 0.5rem;
         border: 1px solid var(--sl-color-neutral-200);
         box-shadow: 0 1px 2px rgba(0,0,0,0.05);
         flex-wrap: wrap;
@@ -35,25 +35,35 @@ export const styles: CSSResult = css`
     .header-left {
         display: flex;
         align-items: center;
-        gap: 1rem;
+        gap: 0.5rem;
         flex: 1;
     }
 
     .header-right {
         display: flex;
         align-items: center;
-        gap: 0.75rem;
+        gap: 0.5rem;
     }
 
     .snapshot-controls {
         display: flex;
         align-items: center;
-        gap: 0.75rem;
+        gap: 0.5rem;
         background: var(--sl-color-neutral-50);
-        padding: 0.25rem 0.5rem;
+        padding: 0.2rem 0.4rem;
         border-radius: 0.5rem;
         border: 1px solid var(--sl-color-neutral-200);
     }
+
+    .bulk-progress-inline {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        min-width: 260px;
+        max-width: 420px;
+    }
+    .bulk-progress-inline .bulk-row { gap: 0.4rem; font-size: 0.85rem; }
+    .bulk-progress-inline .bulk-bar { height: 4px; }
     
     .loads-available {
         color: var(--sl-color-neutral-500);
@@ -81,34 +91,34 @@ export const styles: CSSResult = css`
 	}
 
     /* --- Messages --- */
-	.messages {
-		min-height: 0; /* Collapse if empty */
-		padding: 0 0.5rem;
-	}
+    .messages {
+        min-height: 0;
+        padding: 0 0.25rem;
+    }
 
-	.msg {
-		text-align: center;
-		margin: 0;
-		font-size: 0.9rem;
-			color: var(--sl-color-neutral-600);
-			padding: 0.25rem;
-	}
+    .msg {
+        text-align: center;
+        margin: 0;
+        font-size: 0.9rem;
+            color: var(--sl-color-neutral-600);
+            padding: 0.15rem;
+    }
 
-	.bulk-progress {
-		background: var(--sl-color-neutral-0);
-		border: 1px solid var(--sl-color-neutral-200);
-		border-radius: 0.5rem;
-		padding: 0.5rem 0.75rem;
-		margin-bottom: 0.25rem;
-	}
-	.bulk-row {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		font-weight: 600;
-		font-size: 0.9rem;
-		color: var(--sl-color-neutral-700);
-	}
+    .bulk-progress {
+        background: var(--sl-color-neutral-0);
+        border: 1px solid var(--sl-color-neutral-200);
+        border-radius: 0.5rem;
+        padding: 0.375rem 0.5rem;
+        margin-bottom: 0.125rem;
+    }
+    .bulk-row {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-weight: 600;
+        font-size: 0.9rem;
+        color: var(--sl-color-neutral-700);
+    }
 	.bulk-bar {
 		margin-top: 0.25rem;
 		height: 6px;
@@ -258,6 +268,27 @@ export const styles: CSSResult = css`
 	.trend-neutral { color: var(--sl-color-neutral-500); }
     .positive { color: var(--sl-color-success-600); }
     .negative { color: var(--sl-color-danger-600); }
+
+    .wealth-history.loading .skeleton-title,
+    .wealth-history.loading .skeleton-value,
+    .wealth-history.loading .skeleton-sub {
+        background: var(--sl-color-neutral-100);
+        border-radius: 6px;
+        animation: pulse 1.4s ease-in-out infinite;
+    }
+
+    .wealth-history.loading .skeleton-title { height: 12px; }
+    .wealth-history.loading .skeleton-value { height: 24px; margin-top: 8px; }
+    .wealth-history.loading .skeleton-sub { height: 12px; margin-top: 8px; width: 60%; }
+
+    .wealth-history.loading .skeleton-chart {
+        height: 280px;
+        background: var(--sl-color-neutral-50);
+        border: 1px solid var(--sl-color-neutral-200);
+        border-radius: 0.75rem;
+    }
+
+    @keyframes pulse { 0% { opacity: 0.6; } 50% { opacity: 1; } 100% { opacity: 0.6; } }
 
 	.charts {
 		display: grid;
@@ -429,6 +460,20 @@ export const styles: CSSResult = css`
 		gap: 0.75rem;
 	}
 
+	.category-list.size-large {
+		grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+		gap: 1rem;
+	}
+
+	.category-list.size-medium {
+		grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+	}
+
+	.category-list.size-compact {
+		grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+		gap: 0.5rem;
+	}
+
 	.category-card {
 		background: var(--sl-color-neutral-0);
 		border: 1px solid var(--sl-color-neutral-200);
@@ -437,7 +482,16 @@ export const styles: CSSResult = css`
 		display: flex;
 		align-items: center;
 		gap: 0.75rem;
-        transition: border-color 0.2s ease;
+		transition: border-color 0.2s ease;
+	}
+
+	.category-list.size-large .category-card {
+		padding: 1rem;
+	}
+
+	.category-list.size-compact .category-card {
+		padding: 0.5rem;
+		gap: 0.5rem;
 	}
     
     .category-card:hover {
@@ -454,7 +508,19 @@ export const styles: CSSResult = css`
 		align-items: center;
 		justify-content: center;
 		font-size: 1.2rem;
-        flex-shrink: 0;
+		flex-shrink: 0;
+	}
+
+	.category-list.size-large .category-icon {
+		width: 44px;
+		height: 44px;
+		font-size: 1.4rem;
+	}
+
+	.category-list.size-compact .category-icon {
+		width: 28px;
+		height: 28px;
+		font-size: 1rem;
 	}
 
 	.category-details {
@@ -473,17 +539,27 @@ export const styles: CSSResult = css`
 		font-weight: 600;
 		color: var(--sl-color-neutral-700);
 		text-transform: capitalize;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        font-size: 0.9rem;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		font-size: 0.9rem;
 	}
 
 	.cat-val {
 		font-weight: 700;
 		color: var(--sl-color-neutral-900);
-        font-feature-settings: "tnum";
-        font-size: 0.9rem;
+		font-feature-settings: "tnum";
+		font-size: 0.9rem;
+	}
+
+	.category-list.size-large .cat-name,
+	.category-list.size-large .cat-val {
+		font-size: 1rem;
+	}
+
+	.category-list.size-compact .cat-name,
+	.category-list.size-compact .cat-val {
+		font-size: 0.85rem;
 	}
     
     .category-pct {
@@ -497,6 +573,14 @@ export const styles: CSSResult = css`
 		background: var(--sl-color-neutral-100);
 		border-radius: 99px;
 		overflow: hidden;
+	}
+
+	.category-list.size-large .progress-bar {
+		height: 5px;
+	}
+
+	.category-list.size-compact .progress-bar {
+		height: 3px;
 	}
 
 	.progress-fill {

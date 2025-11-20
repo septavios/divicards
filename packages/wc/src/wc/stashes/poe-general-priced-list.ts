@@ -173,7 +173,10 @@ export class PoeGeneralPricedListElement extends LitElement {
       const gq = isGemItem ? getGemQuality(g.sample) : null;
       const gc = isGemItem ? isCorrupted(g.sample) : null;
       const cat = this.categoryIndex.get(normalizeName(g.name)) ?? (isGemItem ? 'Gem' : 'Other');
-      return { name: g.name, stash: stashName, gemLevel: gl, gemQuality: gq, corrupted: gc, category: cat, qty: g.total, tab: tabIndex, price, total, sample: g.sample };
+      const tabs = Array.from(g.tabs ?? new Set<number>([tabIndex]));
+      const tab = tabs.length ? Math.min(...tabs) : tabIndex;
+      const tabsText = tabs.join(',');
+      return { name: g.name, stash: stashName, gemLevel: gl, gemQuality: gq, corrupted: gc, category: cat, qty: g.total, tab, tabsText, price, total, sample: g.sample };
     });
     if (this.aggregate && rows.length === 0) {
       return html``;
@@ -200,7 +203,7 @@ export class PoeGeneralPricedListElement extends LitElement {
       }
     });
 
-    const headerCols = this.aggregate ? ['Name', 'Gem Level', 'Gem Quality', 'Corrupted', 'Category', 'Quantity', 'Price', 'Total'] : ['Name', 'Stash', 'Tab', 'Quantity', 'Price', 'Total'];
+    const headerCols = this.aggregate ? ['Name', 'Gem Level', 'Gem Quality', 'Corrupted', 'Category', 'Tab', 'Quantity', 'Price', 'Total'] : ['Name', 'Stash', 'Tab', 'Quantity', 'Price', 'Total'];
     const filteredTotal = filtered.reduce((sum, r) => sum + (r.total || 0), 0);
     const totalPages = Math.max(1, Math.ceil(filtered.length / Math.max(1, this.perPage)));
     const safePage = Math.min(Math.max(1, this.page), totalPages);
@@ -223,29 +226,29 @@ export class PoeGeneralPricedListElement extends LitElement {
       </div>` : null}
         <sl-button size="small" @click=${() => { this.viewPricesOpen = true; }}>View Prices JSON</sl-button>
       </div>
-      ${this.aggregate ? html`<sl-popup .active=${this.filtersOpen} anchor="filtersBtn" placement="bottom-end" distance="8">
+      ${this.aggregate ? html`<sl-popup .active=${this.filtersOpen} anchor="filtersBtn" placement="bottom-end" distance="8" flip shift>
         <div class="filters-panel">
           <h4>Category</h4>
-          <sl-select hoist .value=${this.category ?? ''} @sl-change=${(e: any) => { const v = e.target.value; this.category = v ? String(v) : null; }} placeholder="Filter by category">
+          <sl-select hoist size="small" .value=${this.category ?? ''} @sl-change=${(e: any) => { const v = e.target.value; this.category = v ? String(v) : null; }} placeholder="Filter by category">
             ${this.categories().map(c => html`<sl-option value=${c}>${c}</sl-option>`)}
           </sl-select>
           <div class="divider"></div>
           <h4>Quantity Range</h4>
           <div class="grid-2">
-            <sl-input type="number" placeholder="No minimum" .value=${String(this.qtyMin ?? '')} @sl-input=${(e: any) => { const v = e.target.value; this.qtyMin = v === '' ? null : Number(v); }}></sl-input>
-            <sl-input type="number" placeholder="No maximum" .value=${String(this.qtyMax ?? '')} @sl-input=${(e: any) => { const v = e.target.value; this.qtyMax = v === '' ? null : Number(v); }}></sl-input>
+            <sl-input size="small" type="number" placeholder="No minimum" .value=${String(this.qtyMin ?? '')} @sl-input=${(e: any) => { const v = e.target.value; this.qtyMin = v === '' ? null : Number(v); }}></sl-input>
+            <sl-input size="small" type="number" placeholder="No maximum" .value=${String(this.qtyMax ?? '')} @sl-input=${(e: any) => { const v = e.target.value; this.qtyMax = v === '' ? null : Number(v); }}></sl-input>
           </div>
           <div class="divider"></div>
           <h4>Item Price Range</h4>
           <div class="grid-2">
-            <sl-input type="number" placeholder="No minimum" .value=${String(this.priceMin ?? '')} @sl-input=${(e: any) => { const v = e.target.value; this.priceMin = v === '' ? null : Number(v); }}></sl-input>
-            <sl-input type="number" placeholder="No maximum" .value=${String(this.priceMax ?? '')} @sl-input=${(e: any) => { const v = e.target.value; this.priceMax = v === '' ? null : Number(v); }}></sl-input>
+            <sl-input size="small" type="number" placeholder="No minimum" .value=${String(this.priceMin ?? '')} @sl-input=${(e: any) => { const v = e.target.value; this.priceMin = v === '' ? null : Number(v); }}></sl-input>
+            <sl-input size="small" type="number" placeholder="No maximum" .value=${String(this.priceMax ?? '')} @sl-input=${(e: any) => { const v = e.target.value; this.priceMax = v === '' ? null : Number(v); }}></sl-input>
           </div>
           <div class="divider"></div>
           <h4>Total Price Range</h4>
           <div class="grid-2">
-            <sl-input type="number" placeholder="No minimum" .value=${String(this.totalMin ?? '')} @sl-input=${(e: any) => { const v = e.target.value; this.totalMin = v === '' ? null : Number(v); }}></sl-input>
-            <sl-input type="number" placeholder="No maximum" .value=${String(this.totalMax ?? '')} @sl-input=${(e: any) => { const v = e.target.value; this.totalMax = v === '' ? null : Number(v); }}></sl-input>
+            <sl-input size="small" type="number" placeholder="No minimum" .value=${String(this.totalMin ?? '')} @sl-input=${(e: any) => { const v = e.target.value; this.totalMin = v === '' ? null : Number(v); }}></sl-input>
+            <sl-input size="small" type="number" placeholder="No maximum" .value=${String(this.totalMax ?? '')} @sl-input=${(e: any) => { const v = e.target.value; this.totalMax = v === '' ? null : Number(v); }}></sl-input>
           </div>
         </div>
       </sl-popup>` : null}
@@ -267,6 +270,7 @@ export class PoeGeneralPricedListElement extends LitElement {
         ${this.aggregate ? html`<div class="quality">${r.gemQuality ?? '-'}</div>` : html`<div class="tab">${r.tab}</div>`}
         ${this.aggregate ? html`<div class="corrupted">${typeof r.corrupted === 'boolean' ? (r.corrupted ? 'Yes' : 'No') : '-'}</div>` : null}
         ${this.aggregate ? html`<div class="category">${r.category}</div>` : null}
+        ${this.aggregate ? html`<div class="tab">${r.tabsText ?? String(r.tab)}</div>` : null}
         <div class="qty">${r.qty}</div>
         <div class="price">${r.price ? `${r.price.toFixed(0)}c` : '-'}</div>
         <div class="total">${r.total ? `${r.total.toFixed(0)}c` : '-'}</div>
@@ -338,27 +342,29 @@ export class PoeGeneralPricedListElement extends LitElement {
 
   static styles: CSSResult = css`
     :host { display: block; width: 100%; height: auto; }
-    .list { width: 100%; padding: 8px; display: grid; grid-auto-rows: min-content; row-gap: 6px; overflow: auto; }
-    .tools { display: flex; justify-content: flex-end; gap: 8px; padding-bottom: 6px; align-items: center; }
+    .list { width: 100%; padding: 6px; display: grid; grid-auto-rows: min-content; row-gap: 4px; overflow-y: auto; overflow-x: hidden; }
+    .tools { display: flex; justify-content: flex-start; gap: 6px; padding-bottom: 4px; align-items: center; flex-wrap: wrap; }
     .tools sl-input { min-width: 260px; }
-    .filtered-total { font-weight: 600; opacity: 0.8; }
+    .filtered-total { font-weight: 600; opacity: 0.8; white-space: nowrap; }
     .pager { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
     .pager__info { min-width: 100px; text-align: center; }
     sl-alert { position: sticky; top: 0; z-index: 1; }
-    .header, .row { display: grid; grid-template-columns: 1fr 160px 60px 80px 80px 100px; align-items: center; column-gap: 12px; }
-    .header.agg, .row.agg { grid-template-columns: 1fr 80px 80px 100px 160px 80px 80px 100px; }
-    .header { font-weight: 600; position: sticky; top: 0; background: var(--sl-color-gray-50); z-index: 2; padding: 6px 0; border-bottom: 1px solid var(--sl-color-gray-200); }
+    .header, .row { display: grid; grid-template-columns: 1fr 160px 60px 80px 80px 100px; align-items: center; column-gap: 10px; }
+    .header.agg, .row.agg { grid-template-columns: 1fr 80px 80px 100px 160px 60px 80px 80px 100px; }
+    .header { font-weight: 600; position: sticky; top: 0; background: var(--sl-color-gray-50); z-index: 2; padding: 4px 0; border-bottom: 1px solid var(--sl-color-gray-200); }
     .header .th { text-align: left; background: transparent; border: none; color: inherit; cursor: pointer; padding: 4px 0; }
     .header .th.numeric { text-align: right; }
-    .name { display: flex; align-items: center; gap: 8px; }
+    .name { display: flex; align-items: center; gap: 6px; }
     poe-item { --cell-size: 32px; --poe-item-size: 32px; --stack-size-font-size: 10px; }
     .level, .quality, .qty { text-align: right; }
     .corrupted { text-align: center; }
-    .price, .total { text-align: right; }
-    .row { border-bottom: 1px solid var(--sl-color-gray-200); padding: 6px 0; }
+    .price, .total { text-align: right; overflow: hidden; text-overflow: ellipsis; }
+    .row { border-bottom: 1px solid var(--sl-color-gray-200); padding: 4px 0; }
     .filters-panel {
-      width: 360px;
-      max-width: 80vw;
+      width: 380px;
+      max-width: 90vw;
+      max-height: 70vh;
+      overflow: auto;
       padding: 12px;
       display: grid;
       row-gap: 10px;
@@ -367,7 +373,7 @@ export class PoeGeneralPricedListElement extends LitElement {
       border: 1px solid var(--sl-color-neutral-200);
       border-radius: 12px;
       box-shadow: var(--sl-shadow-x-large);
-      z-index: 5;
+      z-index: 2000;
     }
     .filters-panel sl-select,
     .filters-panel sl-input {
@@ -375,7 +381,10 @@ export class PoeGeneralPricedListElement extends LitElement {
       --sl-input-border-color: var(--sl-color-neutral-300);
       --sl-input-color: var(--sl-color-neutral-900);
       --sl-panel-background-color: var(--sl-color-neutral-0);
+      width: 100%;
     }
+    .filters-panel sl-select::part(combobox) { width: 100%; }
+    .filters-panel sl-option::part(base) { background: var(--sl-color-neutral-0); }
     .filters-panel sl-option::part(base) { background: var(--sl-color-neutral-0); }
     .filters-panel h4 { margin: 0; font-size: 0.95rem; }
     .divider { height: 1px; background: var(--sl-color-gray-200); margin: 4px 0; }
@@ -393,7 +402,7 @@ function normalizeItem(item: PoeItem): PoeItem {
   return { ...item, w: 1, h: 1, x: 0, y: 0, identified: true } as PoeItem;
 }
 
-type Group = { name: string; total: number; sample: PoeItem };
+type Group = { name: string; total: number; sample: PoeItem; tabs: Set<number> };
 
 function isGem(item: PoeItem): boolean {
   const ft = (item as any).frameType;
@@ -450,11 +459,13 @@ function groupAggregated(items: PoeItem[]): Map<string, Group> {
       key = `${baseName}__${lvl}__${q}__${c ? 'c' : 'u'}`;
     }
     const qty = it.stackSize ?? 1;
+    const tIdx = Number((it as any).tabIndex ?? (it as any).__tabIndex ?? 0) || 0;
     const prev = map.get(key);
     if (prev) {
       prev.total += qty;
+      prev.tabs.add(tIdx);
     } else {
-      map.set(key, { name: baseName, total: qty, sample: it });
+      map.set(key, { name: baseName, total: qty, sample: it, tabs: new Set([tIdx]) });
     }
   }
   return map;
@@ -546,7 +557,7 @@ type CategorySource = {
 
 function normalizeName(n: string): string { return n.trim(); }
 
-function categoryFromKey(k: keyof CategorySource): string {
+export function categoryFromKey(k: string): string {
   switch (k) {
     case 'currency': return 'Currency';
     case 'fragments': return 'Fragment';
