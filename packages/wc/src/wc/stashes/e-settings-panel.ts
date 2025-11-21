@@ -9,10 +9,24 @@ import '@shoelace-style/shoelace/dist/components/icon/icon.js';
 export class SettingsPanelElement extends LitElement {
   static override styles: Array<CSSResult> = [css`
     :host { display: inline-block; }
-    .panel { padding: 0.75rem; width: 260px; }
-    .row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem; }
-    .label { flex: 1; font-size: 0.85rem; opacity: 0.85; }
-    .actions { display: flex; justify-content: flex-end; margin-top: 0.5rem; }
+    .panel { 
+      padding: 1rem; 
+      width: 280px; 
+      background: var(--sl-color-neutral-0);
+      border: 1px solid var(--sl-color-neutral-200);
+      border-radius: 0.5rem;
+      box-shadow: var(--sl-shadow-medium);
+    }
+    :host-context(.sl-theme-dark) .panel {
+      background: var(--sl-color-neutral-800);
+      border-color: var(--sl-color-neutral-700);
+    }
+    .row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 0.75rem; }
+    .label { font-size: 0.9rem; color: var(--sl-color-neutral-700); font-weight: 500; }
+    :host-context(.sl-theme-dark) .label { color: var(--sl-color-neutral-200); }
+    sl-input { width: 80px; }
+    .actions { display: flex; justify-content: flex-end; margin-top: 1rem; pt: 0.5rem; border-top: 1px solid var(--sl-color-neutral-200); padding-top: 0.75rem; }
+    :host-context(.sl-theme-dark) .actions { border-top-color: var(--sl-color-neutral-700); }
   `];
 
   @property({ type: Number }) concurrency: number = 2;

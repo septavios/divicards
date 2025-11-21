@@ -11,7 +11,7 @@ export const styles: CSSResult = css`
 		position: relative;
         display: flex;
     flex-direction: column;
-        gap: 0.5rem;
+        gap: 0.25rem;
 	}
 
 	wc-help-tip::part(tooltip) {
@@ -23,36 +23,58 @@ export const styles: CSSResult = css`
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-        gap: 0.5rem;
+        gap: 1rem;
         background: var(--sl-color-neutral-0);
-        padding: 0.5rem 0.75rem;
-        border-radius: 0.5rem;
+        padding: 0.5rem 1rem;
+        border-radius: 1rem;
         border: 1px solid var(--sl-color-neutral-200);
-        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        box-shadow: 0 4px 20px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.02);
         flex-wrap: wrap;
+        color: var(--sl-color-neutral-900);
 	}
+
+    :host-context(.sl-theme-dark) .header {
+        background: var(--sl-color-neutral-800);
+        border-color: var(--sl-color-neutral-700);
+        color: var(--sl-color-neutral-100);
+        box-shadow: 0 4px 20px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+    }
 
     .header-left {
         display: flex;
         align-items: center;
-        gap: 0.5rem;
+        gap: 1rem;
         flex: 1;
     }
 
     .header-right {
         display: flex;
         align-items: center;
-        gap: 0.5rem;
+        gap: 1.5rem;
+    }
+
+    .toolbar-group {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding-right: 1.5rem;
+        border-right: 1px solid var(--sl-color-neutral-200);
+    }
+
+    :host-context(.sl-theme-dark) .toolbar-group {
+        border-right-color: var(--sl-color-neutral-800);
+    }
+
+    .toolbar-group:last-child {
+        border-right: none;
+        padding-right: 0;
     }
 
     .snapshot-controls {
+        /* Deprecated class, kept for safety but styles moved to toolbar-group */
         display: flex;
         align-items: center;
         gap: 0.5rem;
-        background: var(--sl-color-neutral-50);
-        padding: 0.2rem 0.4rem;
-        border-radius: 0.5rem;
-        border: 1px solid var(--sl-color-neutral-200);
     }
 
     .bulk-progress-inline {
@@ -67,19 +89,24 @@ export const styles: CSSResult = css`
     
     .loads-available {
         color: var(--sl-color-neutral-500);
-        font-size: 0.8rem;
+        font-size: 0.9rem;
         font-weight: 500;
         display: flex;
         align-items: center;
         gap: 0.4rem;
     }
     
+    .loads-available sl-icon {
+        color: var(--sl-color-warning-500);
+    }
+    
     .loads-available__value {
-        color: var(--sl-color-primary-600);
+        color: var(--sl-color-neutral-700);
         font-weight: 700;
-        background: var(--sl-color-primary-50);
-        padding: 0.1rem 0.3rem;
-        border-radius: 0.25rem;
+    }
+
+    :host-context(.sl-theme-dark) .loads-available__value {
+        color: var(--sl-color-neutral-200);
     }
 
 	.btn-load-items {
@@ -142,7 +169,7 @@ export const styles: CSSResult = css`
 	.wealth-history {
         display: flex;
         flex-direction: column;
-        gap: 1rem;
+        gap: 0.5rem;
 		animation: fade-in 0.4s ease-out;
 	}
 
@@ -154,15 +181,15 @@ export const styles: CSSResult = css`
     /* New Compact Metrics Grid */
     .metrics-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 1rem;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 0.5rem;
     }
 
     .metric-card {
         background: var(--sl-color-neutral-0);
         border: 1px solid var(--sl-color-neutral-200);
-        border-radius: 0.75rem;
-        padding: 1rem;
+        border-radius: 0.5rem;
+        padding: 0.75rem;
         box-shadow: 0 1px 2px rgba(0,0,0,0.05);
         display: flex;
         flex-direction: column;
@@ -177,61 +204,62 @@ export const styles: CSSResult = css`
     }
 
     .metric-label {
-        font-size: 0.75rem;
+        font-size: 0.7rem;
         text-transform: uppercase;
         letter-spacing: 0.05em;
         color: var(--sl-color-neutral-500);
         font-weight: 600;
-        margin-bottom: 0.5rem;
+        margin-bottom: 0.35rem;
         display: flex;
         align-items: center;
-        gap: 0.4rem;
+        gap: 0.3rem;
     }
     
     .metric-label sl-icon {
         color: var(--sl-color-primary-500);
+        font-size: 0.85rem;
     }
 
     .metric-value {
-        font-size: 1.5rem;
+        font-size: 1.35rem;
         font-weight: 700;
         color: var(--sl-color-neutral-900);
         line-height: 1.1;
     }
 
     .metric-sub {
-        font-size: 0.8rem;
+        font-size: 0.75rem;
         color: var(--sl-color-neutral-500);
-        margin-top: 0.5rem;
+        margin-top: 0.35rem;
         display: flex;
         align-items: center;
-        gap: 0.3rem;
+        gap: 0.25rem;
     }
 
     .metric-timestamp {
-        font-size: 0.7rem;
+        font-size: 0.65rem;
         color: var(--sl-color-neutral-400);
-        margin-top: 0.25rem;
+        margin-top: 0.2rem;
         display: flex;
         align-items: center;
-        gap: 0.3rem;
+        gap: 0.25rem;
         font-variant-numeric: tabular-nums;
     }
 
     .metric-timestamp sl-icon {
-        font-size: 0.75rem;
+        font-size: 0.7rem;
     }
 
     /* Top Movers Strip */
     .movers-strip {
         display: flex;
         align-items: center;
-        gap: 1.5rem;
+        gap: 1rem;
         background: linear-gradient(135deg, var(--sl-color-neutral-0) 0%, var(--sl-color-neutral-50) 100%);
         border: 1px solid var(--sl-color-neutral-200);
-        border-radius: 0.75rem;
-        padding: 1rem 1.25rem;
-        font-size: 0.95rem;
+        border-radius: 0.5rem;
+        padding: 0.65rem 0.85rem;
+        font-size: 0.9rem;
         overflow-x: auto;
         box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
@@ -239,30 +267,30 @@ export const styles: CSSResult = css`
     .movers-label {
         font-weight: 700;
         color: var(--sl-color-neutral-600);
-        font-size: 0.85rem;
+        font-size: 0.8rem;
         text-transform: uppercase;
         letter-spacing: 0.08em;
-        padding-right: 1.25rem;
+        padding-right: 0.85rem;
         border-right: 2px solid var(--sl-color-neutral-300);
         white-space: nowrap;
         display: flex;
         align-items: center;
-        gap: 0.5rem;
+        gap: 0.4rem;
     }
     
     .movers-label::before {
         content: "📊";
-        font-size: 1.1rem;
+        font-size: 1rem;
     }
     
     .mover-item {
         display: flex;
         align-items: center;
-        gap: 0.6rem;
+        gap: 0.5rem;
         white-space: nowrap;
-        padding: 0.4rem 0.75rem;
+        padding: 0.3rem 0.6rem;
         background: var(--sl-color-neutral-0);
-        border-radius: 0.5rem;
+        border-radius: 0.4rem;
         border: 1px solid var(--sl-color-neutral-200);
         transition: all 0.2s ease;
     }
@@ -276,7 +304,7 @@ export const styles: CSSResult = css`
     .mover-name {
         color: var(--sl-color-neutral-700);
         font-weight: 600;
-        font-size: 0.9rem;
+        font-size: 0.85rem;
     }
     
     .mover-val {
@@ -315,14 +343,15 @@ export const styles: CSSResult = css`
 
     @keyframes pulse { 0% { opacity: 0.6; } 50% { opacity: 1; } 100% { opacity: 0.6; } }
 
-	.charts {
+	/* Wealth Content Grid - Chart + Categories Side by Side */
+	.wealth-content-grid {
 		display: grid;
 		grid-template-columns: 1fr;
-		gap: 1rem;
+		gap: 0.5rem;
 	}
 
-	@container (min-width: 1000px) {
-		.charts {
+	@container (min-width: 900px) {
+		.wealth-content-grid {
 			grid-template-columns: 2fr 1fr;
 		}
 	}
@@ -330,8 +359,8 @@ export const styles: CSSResult = css`
     .chart-container {
         background: var(--sl-color-neutral-0);
         border: 1px solid var(--sl-color-neutral-200);
-        border-radius: 0.75rem;
-        padding: 1rem;
+        border-radius: 0.5rem;
+        padding: 0.75rem;
         box-shadow: 0 1px 2px rgba(0,0,0,0.05);
         position: relative;
     }
@@ -340,21 +369,110 @@ export const styles: CSSResult = css`
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 0.75rem;
+        margin-bottom: 0.5rem;
     }
     
     .chart-title {
         font-weight: 600;
         color: var(--sl-color-neutral-700);
-        font-size: 0.9rem;
+        font-size: 0.85rem;
+    }
+    
+    .chart-controls {
+        display: flex;
+        gap: 0.5rem;
     }
 
-	canvas#wealth-line,
-	canvas#wealth-bars {
+	canvas#wealth-line {
 		display: block;
 		width: 100%;
-        height: 280px; /* Reduced height */
+        height: 220px;
         cursor: crosshair;
+	}
+	
+	/* Category Breakdown Panel */
+	.category-breakdown-panel {
+		background: var(--sl-color-neutral-0);
+		border: 1px solid var(--sl-color-neutral-200);
+		border-radius: 0.5rem;
+		padding: 0.75rem;
+		box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+	
+	.panel-header {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		font-weight: 600;
+		color: var(--sl-color-neutral-700);
+		font-size: 0.85rem;
+		padding-bottom: 0.5rem;
+		border-bottom: 1px solid var(--sl-color-neutral-200);
+	}
+	
+	.panel-header sl-icon {
+		color: var(--sl-color-primary-500);
+		font-size: 1rem;
+	}
+	
+	/* Compact Category List */
+	.category-compact-list {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+	
+	.cat-compact-item {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+	
+	.cat-compact-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+	}
+	
+	.cat-compact-name {
+		font-size: 0.8rem;
+		font-weight: 600;
+		color: var(--sl-color-neutral-700);
+	}
+	
+	.cat-compact-value {
+		font-size: 0.75rem;
+		font-weight: 700;
+		color: var(--sl-color-neutral-900);
+		font-variant-numeric: tabular-nums;
+	}
+	
+	.cat-compact-bar-bg {
+		position: relative;
+		height: 20px;
+		background: var(--sl-color-neutral-100);
+		border-radius: 4px;
+		overflow: hidden;
+	}
+	
+	.cat-compact-bar {
+		height: 100%;
+		transition: width 0.3s ease;
+		border-radius: 4px;
+	}
+	
+	.cat-compact-percent {
+		position: absolute;
+		right: 6px;
+		top: 50%;
+		transform: translateY(-50%);
+		font-size: 0.7rem;
+		font-weight: 600;
+		color: var(--sl-color-neutral-700);
+		text-shadow: 0 0 4px rgba(255,255,255,0.8);
 	}
 
     .chart-tooltip {

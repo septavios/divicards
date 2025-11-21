@@ -86,6 +86,14 @@ export class MockStashLoader implements IStashLoader {
         const now = Math.floor(Date.now() / 1000);
         return { timestamp: now, league, total_chaos: 0, total_divines: null, by_category: {} };
     }
+    async priceVarianceCached(
+        _league: League,
+        _tabs: Array<TabWithItems>,
+        _baseline_item_prices?: Record<string, number>,
+        _baseline_by_category?: Record<string, { chaos: number }>
+    ): Promise<{ mode: 'item' | 'category'; changes: any[]; totalVariance?: number }> {
+        return { mode: 'category', changes: [], totalVariance: 0 };
+    }
     tabs(_league: League): Promise<NoItemsTab[]> {
         return new Promise(r => r(stashes));
     }

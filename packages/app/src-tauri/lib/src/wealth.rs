@@ -123,6 +123,175 @@ fn ensure_db() -> Result<Connection, Error> {
 }
 
 #[command]
+pub async fn price_variance_cached(
+    league: TradeLeague,
+    tabs: Vec<crate::poe::types::TabWithItems>,
+    baseline_item_prices: Option<HashMap<String, f32>>, 
+    baseline_by_category: Option<HashMap<String, CategoryTotals>>,
+    _prices_state: State<'_, Mutex<prices::AppCardPrices>>, 
+    _window: Window,
+)
+-> Result<serde_json::Value, Error> {
+    let currency_prices = prices::currency_prices(league.clone()).await.unwrap_or_default();
+    let fragment_prices = prices::fragment_prices(league.clone()).await.unwrap_or_default();
+    let oil_prices = prices::oil_prices(league.clone()).await.unwrap_or_default();
+    let essence_prices = prices::essence_prices(league.clone()).await.unwrap_or_default();
+    let incubator_prices = prices::incubator_prices(league.clone()).await.unwrap_or_default();
+    let fossil_prices = prices::fossil_prices(league.clone()).await.unwrap_or_default();
+    let card_prices = prices::divination_card_prices(league.clone()).await.unwrap_or_default();
+    let resonator_prices = prices::resonator_prices(league.clone()).await.unwrap_or_default();
+    let delirium_orb_prices = prices::delirium_orb_prices(league.clone()).await.unwrap_or_default();
+    let vial_prices = prices::vial_prices(league.clone()).await.unwrap_or_default();
+    let map_prices = prices::map_prices(league.clone()).await.unwrap_or_default();
+    let gem_prices = prices::gem_prices(league.clone()).await.unwrap_or_default();
+
+    let mut currency_map: HashMap<String, f32> = HashMap::new();
+    for p in currency_prices.into_iter() { if let Some(v) = p.chaos_value { currency_map.insert(p.name, v); } }
+    let mut frags_map: HashMap<String, f32> = HashMap::new();
+    for p in fragment_prices.into_iter() { if let Some(v) = p.chaos_value { frags_map.insert(p.name, v); } }
+    let mut oils_map: HashMap<String, f32> = HashMap::new();
+    for p in oil_prices.into_iter() { if let Some(v) = p.chaos_value { oils_map.insert(p.name, v); } }
+    let mut essences_map: HashMap<String, f32> = HashMap::new();
+    for p in essence_prices.into_iter() { if let Some(v) = p.chaos_value { let key = p.variant.unwrap_or_else(|| p.name.clone()); essences_map.insert(key, v); } }
+    let mut incubators_map: HashMap<String, f32> = HashMap::new();
+    for p in incubator_prices.into_iter() { if let Some(v) = p.chaos_value { incubators_map.insert(p.name, v); } }
+    let mut fossils_map: HashMap<String, f32> = HashMap::new();
+    for p in fossil_prices.into_iter() { if let Some(v) = p.chaos_value { fossils_map.insert(p.name, v); } }
+    let mut cards_map: HashMap<String, f32> = HashMap::new();
+    for p in card_prices.into_iter() { if let Some(v) = p.chaos_value { cards_map.insert(p.name, v); } }
+    let mut resonators_map: HashMap<String, f32> = HashMap::new();
+    for p in resonator_prices.into_iter() { if let Some(v) = p.chaos_value { resonators_map.insert(p.name, v); } }
+    let mut delirium_map: HashMap<String, f32> = HashMap::new();
+    for p in delirium_orb_prices.into_iter() { if let Some(v) = p.chaos_value { delirium_map.insert(p.name, v); } }
+    let mut vials_map: HashMap<String, f32> = HashMap::new();
+    for p in vial_prices.into_iter() { if let Some(v) = p.chaos_value { vials_map.insert(p.name, v); } }
+    let mut maps_map: HashMap<(String, u8), f32> = HashMap::new();
+    for p in map_prices.into_iter() { if let Some(v) = p.chaos_value { maps_map.insert((p.name, p.tier), v); } }
+    let mut gems_map: HashMap<(String, u8, u8, bool), f32> = HashMap::new();
+    for p in gem_prices.into_iter() { if let Some(v) = p.chaos_value { gems_map.insert((p.name, p.level, p.quality, p.corrupt), v); } }
+
+    let mut aggregated: HashMap<String, (String, u32, bool, u8, u8)> = HashMap::new();
+    let mut current_categories: HashMap<String, f32> = HashMap::new();
+    for tab in tabs.into_iter() {
+        for item in tab.items() {
+            let name = item.type_line().unwrap_or("").to_string();
+            let base = item.base_type().unwrap_or("").to_string();
+            let key_name = if name.is_empty() { base.clone() } else { name.clone() };
+            let qty = item.stack_size().unwrap_or(1);
+            let gl = item.gem_level().unwrap_or(0);
+            let gq = item.gem_quality().unwrap_or(0);
+            let gc = item.corrupted();
+            let is_gem = gl > 0 || gq > 0 || base.is_empty();
+            let item_key = if is_gem { format!("{}__{}__{}__{}", base, gl, gq, if gc { "c" } else { "u" }) } else { base.clone() };
+            let entry = aggregated.entry(item_key.clone()).or_insert((base.clone(), 0, is_gem, gl, gq));
+            entry.1 += qty;
+
+            let mut price: Option<f32> = currency_map.get(&key_name).copied()
+                .or_else(|| frags_map.get(&key_name).copied())
+                .or_else(|| cards_map.get(&key_name).copied())
+                .or_else(|| oils_map.get(&key_name).copied())
+                .or_else(|| incubators_map.get(&key_name).copied())
+                .or_else(|| fossils_map.get(&key_name).copied())
+                .or_else(|| resonators_map.get(&key_name).copied())
+                .or_else(|| delirium_map.get(&key_name).copied())
+                .or_else(|| vials_map.get(&key_name).copied());
+            if price.is_none() {
+                let tier = item.map_tier().unwrap_or(0);
+                price = maps_map.get(&(key_name.clone(), tier)).copied().or_else(|| maps_map.get(&(key_name.clone(), 0)).copied());
+            }
+            if price.is_none() {
+                let tl = item.type_line().unwrap_or("");
+                price = essences_map.get(tl).copied().or_else(|| essences_map.get(&base).copied());
+            }
+            if let Some(pv) = price { 
+                let cat = if currency_map.contains_key(&key_name) { "Currency" }
+                    else if frags_map.contains_key(&key_name) { "Fragment" }
+                    else if cards_map.contains_key(&key_name) { "Divination Card" }
+                    else if maps_map.contains_key(&(key_name.clone(), item.map_tier().unwrap_or(0))) { "Map" }
+                    else if essences_map.contains_key(&key_name) || essences_map.contains_key(&base) { "Essence" }
+                    else if oils_map.contains_key(&key_name) { "Oil" }
+                    else if incubators_map.contains_key(&key_name) { "Incubator" }
+                    else if fossils_map.contains_key(&key_name) { "Fossil" }
+                    else if resonators_map.contains_key(&key_name) { "Resonator" }
+                    else if delirium_map.contains_key(&key_name) { "Delirium Orb" }
+                    else if vials_map.contains_key(&key_name) { "Vial" }
+                    else { "Other" };
+                *current_categories.entry(cat.to_string()).or_insert(0.0) += pv * (qty as f32);
+            }
+        }
+    }
+
+    if let Some(baseline) = baseline_item_prices {
+        let mut changes: Vec<serde_json::Value> = Vec::new();
+        let mut total_variance: f32 = 0.0;
+        for (key, (base, qty, is_gem, gl, gq)) in aggregated.into_iter() {
+            let mut current_price: f32 = 0.0;
+            if is_gem {
+                if gl == 20 && gq == 20 {
+                    current_price = gems_map.get(&(base.clone(), 20, 20, true)).copied()
+                        .or_else(|| gems_map.get(&(base.clone(), 20, 20, false)).copied()).unwrap_or(0.0);
+                } else {
+                    current_price = gems_map.get(&(base.clone(), 1, 0, false)).copied()
+                        .or_else(|| gems_map.get(&(base.clone(), gl, gq, false)).copied()).unwrap_or(0.0);
+                }
+                if current_price == 0.0 { current_price = cards_map.get(&base).copied().unwrap_or(0.0); }
+            } else {
+                current_price = currency_map.get(&base).copied()
+                    .or_else(|| frags_map.get(&base).copied())
+                    .or_else(|| cards_map.get(&base).copied())
+                    .or_else(|| oils_map.get(&base).copied())
+                    .or_else(|| incubators_map.get(&base).copied())
+                    .or_else(|| fossils_map.get(&base).copied())
+                    .or_else(|| resonators_map.get(&base).copied())
+                    .or_else(|| delirium_map.get(&base).copied())
+                    .or_else(|| vials_map.get(&base).copied()).unwrap_or(0.0);
+                if current_price == 0.0 { 
+                    current_price = maps_map.get(&(base.clone(), 0)).copied().unwrap_or(0.0);
+                }
+            }
+            let snapshot_price = baseline.get(&key).copied().or_else(|| baseline.get(&base).copied()).unwrap_or(0.0);
+            let change = current_price - snapshot_price;
+            let change_percent = if snapshot_price > 0.0 { (change / snapshot_price) * 100.0 } else { if current_price > 0.0 { 100.0 } else { 0.0 } };
+            let impact = change * (qty as f32);
+            total_variance += impact;
+            changes.push(serde_json::json!({
+                "name": base,
+                "category": "",
+                "qty": qty,
+                "snapshotPrice": snapshot_price,
+                "currentPrice": current_price,
+                "change": change,
+                "changePercent": change_percent,
+                "totalChange": impact
+            }));
+        }
+        return Ok(serde_json::json!({ "mode": "item", "changes": changes, "totalVariance": total_variance }));
+    }
+
+    let mut changes: Vec<serde_json::Value> = Vec::new();
+    let baseline_map = baseline_by_category.unwrap_or_default();
+    for (cat, current) in current_categories.into_iter() {
+        let snapshot_total = baseline_map.get(&cat).map(|v| v.chaos).unwrap_or(0.0);
+        let diff = current - snapshot_total;
+        let diff_percent = if snapshot_total > 0.0 { (diff / snapshot_total) * 100.0 } else { 0.0 };
+        changes.push(serde_json::json!({
+            "category": cat,
+            "snapshotTotal": snapshot_total,
+            "currentTotal": current,
+            "diff": diff,
+            "diffPercent": diff_percent,
+            "topItems": []
+        }));
+    }
+    changes.sort_by(|a,b| {
+        let ad = a["diff"].as_f64().unwrap_or(0.0).abs();
+        let bd = b["diff"].as_f64().unwrap_or(0.0).abs();
+        bd.partial_cmp(&ad).unwrap_or(std::cmp::Ordering::Equal)
+    });
+    Ok(serde_json::json!({ "mode": "category", "changes": changes }))
+}
+
+#[tauri::command]
 pub async fn wealth_snapshot(
     league: TradeLeague,
     tabs: Vec<TabRef>,

@@ -23,6 +23,12 @@ export interface IStashLoader {
     wealthSnapshot: (league: League, tabs: Array<{ stash_id: string; substash_id?: string | null }>) => Promise<{ timestamp: number; league: string; total_chaos: number; total_divines: number | null; by_category: Record<string, { chaos: number }> }>;
     listSnapshots: (league: League, limit?: number) => Promise<Array<{ timestamp: number; league: string; total_chaos: number; total_divines: number | null; by_category: Record<string, { chaos: number }> }>>;
     wealthSnapshotCached: (league: League, tabs: Array<TabWithItems>) => Promise<{ timestamp: number; league: string; total_chaos: number; total_divines: number | null; by_category: Record<string, { chaos: number }> }>;
+    priceVarianceCached: (
+        league: League,
+        tabs: Array<TabWithItems>,
+        baseline_item_prices?: Record<string, number>,
+        baseline_by_category?: Record<string, { chaos: number }>
+    ) => Promise<{ mode: 'item' | 'category'; changes: any[]; totalVariance?: number }>;
 }
 
 export interface IDefaultStashLoader {

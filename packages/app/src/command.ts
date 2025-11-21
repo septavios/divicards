@@ -59,6 +59,7 @@ export interface Commands {
     divination_card_prices: (args: { league: League }) => Array<{ name: string; chaos_value: number | null }>;
     ninja_dense_overviews_raw: (args: { league: League }) => Record<string, unknown>;
     set_gem_prices_cache_ttl_minutes: (args: { minutes: number }) => void;
+    price_variance_cached: (args: { league: League; tabs: Array<TabWithItems>; baseline_item_prices?: Record<string, number>; baseline_by_category?: Record<string, { chaos: number }> }) => { mode: 'item' | 'category'; changes: any[]; totalVariance?: number };
     wealth_snapshot: (args: { league: League; tabs: Array<{ stash_id: string; substash_id?: string | null }> }) => {
         timestamp: number;
         league: string;

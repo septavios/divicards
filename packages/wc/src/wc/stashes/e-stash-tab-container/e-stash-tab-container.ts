@@ -29,9 +29,9 @@ import { CloseEvent, ExtractCardsEvent } from './events.js';
 import { SampleFromStashtabEvent } from '../events.js';
 
 declare global {
-	interface HTMLElementTagNameMap {
-		'e-stash-tab-container': StashTabContainerElement;
-	}
+    interface HTMLElementTagNameMap {
+        'e-stash-tab-container': StashTabContainerElement;
+    }
 }
 
 /**
@@ -41,32 +41,32 @@ declare global {
  */
 @customElement('e-stash-tab-container')
 export class StashTabContainerElement extends LitElement {
-	/** PoE API tab data https://www.pathofexile.com/developer/docs/reference#stashes-get */
-	@property({ type: Object }) tab: TabWithItems | null = null;
-	@property() status: 'pending' | 'complete' = 'pending';
-	@property({ type: Boolean }) cardsJustExtracted: boolean = false;
-	@property() league: string = 'Standard';
+    /** PoE API tab data https://www.pathofexile.com/developer/docs/reference#stashes-get */
+    @property({ type: Object }) tab: TabWithItems | null = null;
+    @property() status: 'pending' | 'complete' = 'pending';
+    @property({ type: Boolean }) cardsJustExtracted: boolean = false;
+    @property() league: string = 'Standard';
     @property({ attribute: false }) stashLoader!: IStashLoader;
     @property({ type: Boolean }) viewJsonOpen: boolean = false;
     @property({ attribute: false }) divTabs: Array<{ id: string; name: string; type: string }> = [];
     @property() selectedDivTabId: string | null = null;
     @property({ type: Boolean }) extractingSelected: boolean = false;
 
-	@query('sl-alert') scarabsSuccessAlert!: SlAlert;
+    @query('sl-alert') scarabsSuccessAlert!: SlAlert;
 
-	protected render(): TemplateResult {
-		return html`<header class="header">
+    protected render(): TemplateResult {
+        return html`<header class="header">
 				<div class="header-main">
 					<div class="badge-and-copy">
 					${this.tab ? html`<e-tab-badge as="button" .tab=${this.tab}></e-tab-badge>` : null}
                     ${this.tab
-                        ? html`<sl-copy-button
+                ? html`<sl-copy-button
                                 .value=${JSON.stringify(this.tab, null, 4)}
                                 .copyLabel=${`Click to copy JSON of the tab`}
                                 .successLabel=${`You copied JSON of the tab`}
                                 .errorLabel=${`Whoops, your browser doesn't support this!`}
                           ></sl-copy-button>`
-                        : null}
+                : null}
                     ${this.tab ? html`<sl-button size="small" @click=${() => { this.viewJsonOpen = true; }}>View JSON</sl-button>` : null}
 					</div>
                     ${this.tab && (this.tab.type as unknown as string) === 'DivinationCardStash' ? html`
@@ -78,14 +78,14 @@ export class StashTabContainerElement extends LitElement {
                         </div>
                     ` : null}
                     ${this.status === 'complete' && this.tab
-                        ? this.tab.type === 'FragmentStash'
-                            ? html` <sl-button @click=${this.#copyScarabs}>Copy Scarabs</sl-button> `
-                            : (this.tab.type as unknown as string) === 'DivinationCardStash'
-                                ? (this.cardsJustExtracted
-                                    ? html`<sl-button variant="success">Extracted</sl-button>`
-                                    : html`<sl-button @click=${this.#emitExtractCards}>Extract cards sample</sl-button>`)
-                                : null
-                        : null}
+                ? this.tab.type === 'FragmentStash'
+                    ? html` <sl-button @click=${this.#copyScarabs}>Copy Scarabs</sl-button> `
+                    : (this.tab.type as unknown as string) === 'DivinationCardStash'
+                        ? (this.cardsJustExtracted
+                            ? html`<sl-button variant="success">Extracted</sl-button>`
+                            : html`<sl-button @click=${this.#emitExtractCards}>Extract cards sample</sl-button>`)
+                        : null
+                : null}
                     <sl-icon-button name="x-lg" @click=${this.#emitClose} class="btn-close">X</sl-icon-button>
 				</div>
 				<div class="alerts">
@@ -101,90 +101,52 @@ export class StashTabContainerElement extends LitElement {
 			</sl-dialog>
             <div class="tab-box">
                 ${this.tab && this.status === 'complete'
-                    ? (() => {
-                        const isAggregated = (this.tab?.id === 'aggregated-view') || (String(this.tab?.name || '').startsWith('Aggregated'));
-                        if (isAggregated) {
-                            const items = Array.isArray(this.tab?.items) ? this.tab!.items : [];
-                            const looksLikeCards = items.length > 0 && items.every(it => (it as any).frameType === 6);
-                            if (looksLikeCards) {
-                                return html`<poe-divination-stash-list .league=${this.league} .stashLoader=${this.stashLoader} .tab=${this.tab}></poe-divination-stash-list>`;
-                            }
-                            const looksLikeEssence = items.length > 0 && items.every(it => {
-                                const name = String((it as any).typeLine || (it as any).baseType || (it as any).name || '');
-                                return name.includes('Essence');
-                            });
-                            if (looksLikeEssence) {
-                                return html`<poe-essence-stash-list .league=${this.league} .stashLoader=${this.stashLoader} .tab=${this.tab}></poe-essence-stash-list>`;
-                            }
-                            const looksLikeGem = items.length > 0 && items.every(it => {
-                                const ft = (it as any).frameType;
-                                const props = (it as any).properties || [];
-                                const hasGemProp = Array.isArray(props) && props.some((p: any) => p?.name === 'Gem Level' || p?.name === 'Level');
-                                return ft === 4 || hasGemProp;
-                            });
-                            return looksLikeGem
-                                ? html`<poe-gem-stash-list .league=${this.league} .stashLoader=${this.stashLoader} .tab=${this.tab}></poe-gem-stash-list>`
-                                : html`<poe-general-priced-list .league=${this.league} .stashLoader=${this.stashLoader} .tab=${this.tab}></poe-general-priced-list>`;
-                        }
-                        if ((this.tab.type as unknown as string) === 'DelveStash') {
-                            return html`<poe-delve-priced-list .league=${this.league} .stashLoader=${this.stashLoader} .tab=${this.tab}></poe-delve-priced-list>`;
-                        }
-                        if ((this.tab.type as unknown as string) === 'MapStash') {
-                            return html`<poe-map-stash-list .league=${this.league} .stashLoader=${this.stashLoader} .tab=${this.tab}></poe-map-stash-list>`;
-                        }
-                        if ((this.tab.type as unknown as string) === 'CurrencyStash') {
-                            return html`<poe-currency-stash-list .league=${this.league} .stashLoader=${this.stashLoader} .tab=${this.tab}></poe-currency-stash-list>`;
-                        }
-                        if ((this.tab.type as unknown as string) === 'FragmentStash') {
-                            return html`<poe-fragment-stash-list .league=${this.league} .stashLoader=${this.stashLoader} .tab=${this.tab}></poe-fragment-stash-list>`;
-                        }
-                        if ((this.tab.type as unknown as string) === 'EssenceStash') {
-                            return html`<poe-essence-stash-list .league=${this.league} .stashLoader=${this.stashLoader} .tab=${this.tab}></poe-essence-stash-list>`;
-                        }
-                        if ((this.tab.type as unknown as string) === 'DivinationCardStash') {
-                            return html`<poe-divination-stash-list .league=${this.league} .stashLoader=${this.stashLoader} .tab=${this.tab}></poe-divination-stash-list>`;
-                        }
-                        if ((this.tab.type as unknown as string) === 'GemStash') {
-                            return html`<poe-gem-stash-list .league=${this.league} .stashLoader=${this.stashLoader} .tab=${this.tab}></poe-gem-stash-list>`;
-                        }
-                        if ((this.tab.type as unknown as string) === 'PremiumStash' || (this.tab.type as unknown as string) === 'NormalStash' || (this.tab.type as unknown as string) === 'QuadStash') {
-                            return html`<poe-general-priced-list .league=${this.league} .stashLoader=${this.stashLoader} .tab=${this.tab}></poe-general-priced-list>`;
-                        }
-                        if (isSupportedTabType(this.tab.type)) {
-                            return html`<poe-stash-tab .tab=${this.tab}></poe-stash-tab>`;
-                        }
+                ? (() => {
+                    const isAggregated = (this.tab?.id === 'aggregated-view') || (String(this.tab?.name || '').startsWith('Aggregated'));
+                    if (isAggregated) {
                         return html`<poe-general-priced-list .league=${this.league} .stashLoader=${this.stashLoader} .tab=${this.tab}></poe-general-priced-list>`;
-                    })()
+                    }
+                    if (['DelveStash', 'MapStash', 'CurrencyStash', 'FragmentStash', 'EssenceStash', 'DivinationCardStash', 'GemStash'].includes(this.tab.type as unknown as string)) {
+                        return html`<poe-general-priced-list .league=${this.league} .stashLoader=${this.stashLoader} .tab=${this.tab}></poe-general-priced-list>`;
+                    }
+                    if ((this.tab.type as unknown as string) === 'PremiumStash' || (this.tab.type as unknown as string) === 'NormalStash' || (this.tab.type as unknown as string) === 'QuadStash') {
+                        return html`<poe-general-priced-list .league=${this.league} .stashLoader=${this.stashLoader} .tab=${this.tab}></poe-general-priced-list>`;
+                    }
+                    if (isSupportedTabType(this.tab.type)) {
+                        return html`<poe-stash-tab .tab=${this.tab}></poe-stash-tab>`;
+                    }
+                    return html`<poe-general-priced-list .league=${this.league} .stashLoader=${this.stashLoader} .tab=${this.tab}></poe-general-priced-list>`;
+                })()
                 : html`<sl-spinner></sl-spinner>`}
             </div> `;
-		}
+    }
 
-// legacy fallback renderer removed; unsupported types now route to <poe-simple-stash-tab>
+    // legacy fallback renderer removed; unsupported types now route to <poe-simple-stash-tab>
 
-	#copyScarabs() {
-		if (!this.tab) {
-			console.error('Cannot extract scarabs because there is no tab data');
-			return;
-		}
-		const s = this.tab.items
-			.filter(item => item.baseType.includes('Scarab'))
-			.sort((a, b) => (b.stackSize ?? 0) - (a.stackSize ?? 0))
-			.map(scarab => `${scarab.baseType},${scarab.stackSize}`)
-			.join('\n');
-		navigator.clipboard.writeText(s).then(() => {
-			this.scarabsSuccessAlert.show();
-		});
-	}
-	#emitExtractCards() {
-		if (this.tab) {
-			this.dispatchEvent(new ExtractCardsEvent(this.tab));
-		} else {
-			console.warn(`Tab is expected to be present but there is none`);
-		}
-	}
-	#emitClose() {
-		this.dispatchEvent(new CloseEvent());
-	}
+    #copyScarabs() {
+        if (!this.tab) {
+            console.error('Cannot extract scarabs because there is no tab data');
+            return;
+        }
+        const s = this.tab.items
+            .filter(item => item.baseType.includes('Scarab'))
+            .sort((a, b) => (b.stackSize ?? 0) - (a.stackSize ?? 0))
+            .map(scarab => `${scarab.baseType},${scarab.stackSize}`)
+            .join('\n');
+        navigator.clipboard.writeText(s).then(() => {
+            this.scarabsSuccessAlert.show();
+        });
+    }
+    #emitExtractCards() {
+        if (this.tab) {
+            this.dispatchEvent(new ExtractCardsEvent(this.tab));
+        } else {
+            console.warn(`Tab is expected to be present but there is none`);
+        }
+    }
+    #emitClose() {
+        this.dispatchEvent(new CloseEvent());
+    }
 
     async #loadDivTabs() {
         if (!this.stashLoader) return;
@@ -229,7 +191,7 @@ export class StashTabContainerElement extends LitElement {
     }
 
 
-	static styles: CSSResult = css`
+    static styles: CSSResult = css`
 		* {
 			padding: 0;
 			margin: 0;

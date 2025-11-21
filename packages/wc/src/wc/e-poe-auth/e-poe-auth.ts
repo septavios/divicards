@@ -1,6 +1,11 @@
 import { html, css, LitElement, TemplateResult, CSSResult } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import '@shoelace-style/shoelace/dist/components/button/button.js';
+import '@shoelace-style/shoelace/dist/components/dropdown/dropdown.js';
+import '@shoelace-style/shoelace/dist/components/menu/menu.js';
+import '@shoelace-style/shoelace/dist/components/menu-item/menu-item.js';
+import '@shoelace-style/shoelace/dist/components/avatar/avatar.js';
+import '@shoelace-style/shoelace/dist/components/icon/icon.js';
 import { Events, LoginClickEvent, LogoutClickEvent } from './events.js';
 import { DefineComponent } from 'vue';
 import { VueEventHandlers } from '../../event-utils.js';
@@ -30,12 +35,31 @@ export class PoeAuthElement extends LitElement {
 	protected override render(): TemplateResult {
 		return html`<div class="poe-auth">
 			${this.auth.loggedIn
-				? html`<div class="logged-in">
-						<p>${this.name_without_hash}</p>
-						<sl-button .size=${this.size} @click=${this.#emitLogout}>Logout</sl-button>
-				  </div>`
+				? html`
+					<sl-dropdown>
+						<div slot="trigger" class="profile-trigger">
+							<sl-avatar 
+								image="" 
+								label=${this.auth.username || 'User'} 
+								initials=${(this.auth.username || '??').substring(0, 2).toUpperCase()}
+								style="--size: 2rem;"
+							></sl-avatar>
+							<span class="username">${this.name_without_hash}</span>
+							<sl-icon name="chevron-down" class="chevron"></sl-icon>
+						</div>
+						<sl-menu>
+							<sl-menu-item @click=${this.#emitLogout}>
+								<sl-icon name="box-arrow-right" slot="prefix"></sl-icon>
+								Logout
+							</sl-menu-item>
+						</sl-menu>
+					</sl-dropdown>
+				  `
 				: html`<div>
-						<sl-button .size=${this.size} @click=${this.#emitLogin}>Connect to PoE</sl-button>
+						<sl-button variant="primary" outline .size=${this.size} @click=${this.#emitLogin}>
+							<sl-icon name="person" slot="prefix"></sl-icon>
+							Connect to PoE
+						</sl-button>
 				  </div>`}
 		</div>`;
 	}
@@ -64,11 +88,40 @@ export class PoeAuthElement extends LitElement {
 
 function styles() {
 	return css`
-		.logged-in {
+		:host {
+			display: block;
+		}
+		
+		.profile-trigger {
 			display: flex;
 			align-items: center;
-			justify-self: center;
-			gap: 1rem;
+			gap: 0.5rem;
+			cursor: pointer;
+			padding: 0.25rem 0.5rem 0.25rem 0.25rem;
+			border-radius: 99px;
+			transition: background-color 0.2s ease;
+			user-select: none;
+			border: 1px solid transparent;
+		}
+
+		.profile-trigger:hover {
+			background-color: var(--sl-color-neutral-100);
+			border-color: var(--sl-color-neutral-200);
+		}
+
+		.username {
+			font-weight: 600;
+			font-size: 0.9rem;
+			color: var(--sl-color-neutral-700);
+		}
+
+		:host-context(.sl-theme-dark) .username {
+			color: var(--sl-color-neutral-200);
+		}
+
+		.chevron {
+			font-size: 0.75rem;
+			color: var(--sl-color-neutral-500);
 		}
 	`;
 }

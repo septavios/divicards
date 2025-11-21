@@ -124,6 +124,15 @@ export class StashLoader implements IStashLoader {
 		return command('wealth_snapshot_cached', { league, tabs });
 	}
 
+	priceVarianceCached(
+		league: League,
+		tabs: Array<TabWithItems>,
+		baseline_item_prices?: Record<string, number>,
+		baseline_by_category?: Record<string, { chaos: number }>
+	): Promise<{ mode: 'item' | 'category'; changes: any[]; totalVariance?: number }> {
+		return command('price_variance_cached', { league, tabs, baseline_item_prices, baseline_by_category });
+	}
+
 
 
 	async tabs(league: League | string): Promise<NoItemsTab[]> {

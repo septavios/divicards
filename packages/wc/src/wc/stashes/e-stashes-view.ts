@@ -1,6 +1,8 @@
 import type { IStashLoader } from '@divicards/shared/IStashLoader.js';
 import { html, PropertyValues, nothing, LitElement, CSSResult, TemplateResult } from 'lit';
 import '../e-help-tip';
+import DataLoader from './data-loader.js';
+import CacheStore from './cache-store.js';
 // league select moved to app toolbar
 import './e-tab-badge-group/e-tab-badge-group.js';
 import './e-stash-tab-errors';
@@ -37,9 +39,8 @@ import {
 } from './events.js';
 import { DefineComponent } from 'vue';
 import { VueEventHandlers } from '../../event-utils.js';
-import { MultiselectChangeEvent } from './e-tab-badge-group/events.js';
 import { TabClickEvent } from './e-tab-badge/events.js';
-import { categoryFromKey } from './poe-general-priced-list.js';
+import { categoryFromKey, PoeGeneralPricedListElement } from './poe-general-priced-list.js';
 
 const SECS_300 = 300 * 1000;
 
@@ -81,7 +82,12 @@ export class StashesViewElement extends LitElement {
 	@state() hoveredErrorTabId: string | null = null;
 	@state() downloadedStashTabs: Array<TabWithItems> = [];
 	@state() tabsCache: Map<string, CachedTab> = new Map();
-	private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+	@state() lastError: { tag: string; message: string } | null = null;
+	@state() retryLabel: string = '';
+	@state() retryCallback: (() => Promise<void>) | null = null;
+	private readonly CACHE_TTL = 5 * 60 * 1000;
+	#cache = new CacheStore<TabWithItems>(this.CACHE_TTL);
+	#loader = new DataLoader({ initialLoads: this.stashLoadsAvailable, cooldownMs: SECS_300, onAvailabilityChange: n => { this.stashLoadsAvailable = n; }, onWaitMessage: msg => { this.msg = msg; } });
 	@state() opened_tab: NoItemsTab | null = null;
 	@state() snapshots: Array<{ timestamp: number; league: string; total_chaos: number; total_divines: number | null; by_category: Record<string, { chaos: number }>; item_prices?: Record<string, number> }> = [];
 	/** Indicator whether cards was just extracted. */
@@ -100,6 +106,7 @@ export class StashesViewElement extends LitElement {
 	@state() private aggregatedMemoKey: string = '';
 	@state() private aggregatedTabMemo: TabWithItems | null = null;
 
+
 	private stashTabTask = new Task(this, {
 		task: async ([tab, selectedTabs]: [NoItemsTab | null, SelectedStashtabs]) => {
 			if (this.multiselect && selectedTabs && selectedTabs.size === 0) {
@@ -111,30 +118,34 @@ export class StashesViewElement extends LitElement {
 				return null;
 			}
 			// If we have this tab in cache, serve it without an API call
-			const inCache = this.#getCachedTab(tab.id);
+			const inCache = this.#cache.get(tab.id);
 			if (inCache) {
 				return inCache;
 			}
 			// Aggregate MapStash items across all children regardless of flattening
 			if (tab.type === 'MapStash') {
 				const parentId = tab.parent ?? tab.id;
+				const cachedParent = this.#cache.get(parentId);
+				if (cachedParent) {
+					return cachedParent;
+				}
 				let children = this.stashtabs_badges.filter(t => t.parent === parentId);
 				if (children.length > 0) {
+					const childTabs = await Promise.all(children.map(child => this.stashLoader.tabFromBadge(child, this.league)));
 					const items: TabWithItems['items'] = [];
-					for (const child of children) {
-						const childTab = await this.stashLoader.tabFromBadge(child, this.league);
-						items.push(...childTab.items);
-					}
-					return { ...tab, items, children } as TabWithItems;
+					childTabs.forEach(ct => items.push(...ct.items));
+					const aggregated = { ...tab, items, children } as TabWithItems;
+					this.#cache.set(parentId, aggregated);
+					return aggregated;
 				}
 				// fallback to existing child array if present
 				if (Array.isArray(tab.children) && tab.children.length > 0) {
+					const childTabs = await Promise.all(tab.children.map(child => this.stashLoader.tabFromBadge(child, this.league)));
 					const items: TabWithItems['items'] = [];
-					for (const child of tab.children) {
-						const childTab = await this.stashLoader.tabFromBadge(child, this.league);
-						items.push(...childTab.items);
-					}
-					return { ...tab, items, children: tab.children } as TabWithItems;
+					childTabs.forEach(ct => items.push(...ct.items));
+					const aggregated = { ...tab, items, children: tab.children } as TabWithItems;
+					this.#cache.set(parentId, aggregated);
+					return aggregated;
 				}
 				// re-fetch badges to discover children and try again
 				try {
@@ -142,20 +153,23 @@ export class StashesViewElement extends LitElement {
 					this.stashtabs_badges = badges;
 					children = badges.filter(t => t.parent === parentId);
 					if (children.length > 0) {
+						const childTabs = await Promise.all(children.map(child => this.stashLoader.tabFromBadge(child, this.league)));
 						const items: TabWithItems['items'] = [];
-						for (const child of children) {
-							const childTab = await this.stashLoader.tabFromBadge(child, this.league);
-							items.push(...childTab.items);
-						}
-						return { ...tab, items, children } as TabWithItems;
+						childTabs.forEach(ct => items.push(...ct.items));
+						const aggregated = { ...tab, items, children } as TabWithItems;
+						this.#setCachedTab(parentId, aggregated);
+						return aggregated;
 					}
-				} catch {
-					// ignore and fallthrough
+				} catch (err) {
+					this.#handleError('refresh-stashes', err, async () => {
+						const badges = await this.stashLoader.tabs(this.league);
+						this.stashtabs_badges = badges;
+					}, 'Retry fetching stash tabs');
 				}
 			}
 			const loaded = await this.#loadSingleTabContent('general-tab', tab.id, this.league, (_id, _league) => this.stashLoader.tabFromBadge(this.opened_tab!, this.league), false);
 			if (loaded && typeof (loaded as any)?.id === 'string') {
-				this.#setCachedTab((loaded as any).id, loaded as any);
+				this.#cache.set((loaded as any).id, loaded as any);
 			}
 			return loaded;
 		},
@@ -163,19 +177,8 @@ export class StashesViewElement extends LitElement {
 	});
 
 	// Cache helper methods with TTL support
-	#isCacheValid(id: string): boolean {
-		const cached = this.tabsCache.get(id);
-		if (!cached) return false;
-		return Date.now() - cached.timestamp < this.CACHE_TTL;
-	}
-
 	#getCachedTab(id: string): TabWithItems | null {
-		if (this.#isCacheValid(id)) {
-			return this.tabsCache.get(id)!.data;
-		}
-		// Remove expired cache entry
-		this.tabsCache.delete(id);
-		return null;
+		return this.#cache.get(id);
 	}
 
 	#toast(variant: ToastVariant, message: string): void {
@@ -192,10 +195,7 @@ export class StashesViewElement extends LitElement {
 	}
 
 	#setCachedTab(id: string, tab: TabWithItems): void {
-		this.tabsCache.set(id, {
-			data: tab,
-			timestamp: Date.now()
-		});
+		this.#cache.set(id, tab);
 		if (this.multiselect && this.selected_tabs.has(id)) {
 			this.#updateAggregatedMemo();
 		}
@@ -224,7 +224,7 @@ export class StashesViewElement extends LitElement {
 	}
 
 	#computeAggregatedMemoKey(ids: string[]): string {
-		const ts = ids.map(id => this.tabsCache.get(id)?.timestamp ?? 0);
+		const ts = ids.map(id => this.#cache.timestamp(id) ?? 0);
 		return `${ids.join(',')}|${ts.join(',')}`;
 	}
 
@@ -235,19 +235,25 @@ export class StashesViewElement extends LitElement {
 			return;
 		}
 		const ids = Array.from(this.selected_tabs.keys());
-		const key = this.#computeAggregatedMemoKey(ids);
+
+		// Filter by opened_tab if it is set and part of the selection
+		const filterId = this.opened_tab?.id;
+		const isFiltered = filterId && this.selected_tabs.has(filterId);
+		const effectiveIds = isFiltered ? [filterId!] : ids;
+
+		const key = this.#computeAggregatedMemoKey(effectiveIds);
 		if (key === this.aggregatedMemoKey) return;
 
 		const items: TabWithItems['items'] = [];
 		let hasAnyData = false;
 
-		for (const id of ids) {
+		for (const id of effectiveIds) {
 			const cached = this.#getCachedTab(id);
 			if (cached && cached.items) {
 				hasAnyData = true;
 				cached.items.forEach(it => {
-					const withTab = { ...(it as any), tabIndex: cached.index } as any;
-					items.push(withTab);
+					(it as any).tabIndex = cached.index;
+					items.push(it);
 				});
 			}
 		}
@@ -259,7 +265,7 @@ export class StashesViewElement extends LitElement {
 		if (items.length > 0) {
 			this.aggregatedTabMemo = {
 				id: 'aggregated-view',
-				name: `Aggregated (${ids.length} tabs)`,
+				name: isFiltered ? `Filtered: ${this.opened_tab?.name}` : `Aggregated (${ids.length} tabs)`,
 				type: 'QuadStash',
 				index: 0,
 				items,
@@ -320,6 +326,9 @@ export class StashesViewElement extends LitElement {
 		if (map.has('stashLoader') && this.stashLoader) {
 			this.#loadSnapshots();
 		}
+		if (map.has('opened_tab')) {
+			this.#updateAggregatedMemo();
+		}
 	}
 
 	protected async firstUpdated(): Promise<void> {
@@ -351,70 +360,70 @@ export class StashesViewElement extends LitElement {
                 </div>
                 
                 <div class="header-right">
-                    <div class="snapshot-controls">
+                    <div class="toolbar-group">
                          <div class="loads-available">
-                            Loads: <span class="loads-available__value">${this.stashLoadsAvailable}</span>
+                            <sl-icon name="lightning-charge-fill"></sl-icon>
+                            <span class="loads-available__value">${this.stashLoadsAvailable}</span>
                         </div>
                         <e-help-tip>
                             <p>PoE API allows 30 requests in 5 minutes</p>
                         </e-help-tip>
+                    </div>
+
+                    <div class="toolbar-group">
                         <sl-button-group>
-                            <sl-button 
-                                size="small" 
-                                @click=${this.#captureSnapshot} 
-                                title="Refresh Snapshot"
-                                .loading=${this.capturingSnapshot}
-                                .disabled=${this.capturingSnapshot}
-                            >
-                                <sl-icon name="arrow-clockwise" slot="prefix"></sl-icon>
-                                Refresh
-                            </sl-button>
+
                             ${this.snapshots.length ? html`
-                                <sl-button 
-                                    size="small" 
-                                    variant="danger"
-                                    @click=${this.#confirmClearHistory}
-                                    title="Clear all wealth history for current league"
-                                >
-                                    <sl-icon name="trash" slot="prefix"></sl-icon>
-                                    Clear All History
-                                </sl-button>
+                                <sl-tooltip content="Clear all wealth history for current league">
+                                    <sl-button 
+                                        size="small" 
+                                        @click=${this.#confirmClearHistory}
+                                    >
+                                        <sl-icon name="trash" slot="prefix"></sl-icon>
+                                        Clear
+                                    </sl-button>
+                                </sl-tooltip>
                             ` : nothing}
                             ${this.snapshots.length ? html`
-                                <sl-button size="small" @click=${this.#toggleWealth} variant=${this.showWealth ? 'default' : 'neutral'}>
+                                <sl-button size="small" @click=${this.#toggleWealth} variant=${this.showWealth ? 'primary' : 'default'} outline>
                                     ${this.showWealth ? 'Hide History' : 'Show History'}
                                 </sl-button>
                             ` : nothing}
                         </sl-button-group>
                     </div>
 
-                    <e-settings-panel
-                        .concurrency=${this.bulkConcurrency}
-                        .delayMs=${this.bulkBatchDelayMs}
-                        @upd:bulk_settings=${this.#onBulkSettingsUpdate}
-                    ></e-settings-panel>
+                    <div class="toolbar-group">
+                        <e-settings-panel
+                            .concurrency=${this.bulkConcurrency}
+                            .delayMs=${this.bulkBatchDelayMs}
+                            @upd:bulk_settings=${this.#onBulkSettingsUpdate}
+                        ></e-settings-panel>
 
-                    ${this.stashtabs_badges.length && this.multiselect && this.opened_tab && (this.opened_tab.type === 'DivinationCardStash')
+                        ${this.stashtabs_badges.length && this.multiselect && this.opened_tab && (this.opened_tab.type === 'DivinationCardStash')
 				? html`<sl-radio-group
-                                @sl-change=${this.#onDownloadAsChanged}
-                                .helpText=${`Download as`}
-                                value=${this.downloadAs}
-                          >
-                                ${DOWNLOAD_AS_VARIANTS.map(
+                                    @sl-change=${this.#onDownloadAsChanged}
+                                    .helpText=${`Download as`}
+                                    value=${this.downloadAs}
+                            >
+                                    ${DOWNLOAD_AS_VARIANTS.map(
 					variant =>
 						html`<sl-radio-button size="small" value=${variant}
-                                            >${variant === 'divination-cards-sample'
+                                                >${variant === 'divination-cards-sample'
 								? 'cards'
 								: 'poe tab'}</sl-radio-button
-                                        >`
+                                            >`
 				)}
-                          </sl-radio-group>`
+                            </sl-radio-group>`
 				: null}
+                    </div>
                     
-                    <sl-button size="small" @click=${this.#onCloseClicked} class="btn-close">Close</sl-button>
+                    <sl-button size="small" @click=${this.#onCloseClicked} class="btn-close" variant="default">
+                        <sl-icon name="x-lg" slot="prefix"></sl-icon>
+                        Close
+                    </sl-button>
                 </div>
             </header>
-            <div class="messages">
+            <div class="messages" role="status" aria-live="polite">
                 <p class="msg">${this.msg}</p>
                 <p class="msg">${this.noStashesMessage}</p>
                 ${this.errors.length
@@ -424,6 +433,10 @@ export class StashesViewElement extends LitElement {
                             .errors=${this.errors}
                       ></e-stash-tab-errors>`
 				: nothing}
+                ${this.lastError ? html`<sl-alert variant="danger" open>
+                    ${this.lastError.message}
+                    ${this.retryCallback ? html`<sl-button size="small" variant="primary" @click=${async () => { await this.retryCallback?.(); this.lastError = null; this.retryCallback = null; this.retryLabel = ''; }}>${this.retryLabel}</sl-button>` : nothing}
+                </sl-alert>` : nothing}
             </div>
 			${(this.snapshotsLoading || (this.showWealth && this.snapshots.length))
 				? (this.snapshots.length ? this.#renderWealthDashboard() : this.#renderWealthSkeleton())
@@ -437,7 +450,6 @@ export class StashesViewElement extends LitElement {
                 	.hoveredErrorTabId=${this.hoveredErrorTabId}
                 	.badgesDisabled=${this.stashLoadsAvailable === 0}
                 	@e-tab-badge-group__click=${this.#handle_tab_badge_click}
-                	@e-tab-badge-group__multiselect-change=${this.#change_multiselect}
                 	@e-tab-badge-group__selected-tabs-change=${this.#handle_selected_tabs_change}
                 ></e-tab-badge-group>
 			${this.opened_tab || (this.multiselect && this.selected_tabs.size > 0)
@@ -535,8 +547,7 @@ export class StashesViewElement extends LitElement {
 		this.bulkLoading = true;
 
 		try {
-			this.multiselect = true;
-
+			PoeGeneralPricedListElement.clearPriceCache();
 			const next: SelectedStashtabs = new Map();
 			for (const t of this.stashtabs_badges) {
 				next.set(t.id, { id: t.id, name: t.name });
@@ -553,28 +564,21 @@ export class StashesViewElement extends LitElement {
 		}
 	}
 
-	#handle_selected_tabs_change(e: SelectedTabsChangeEvent): void {
-		this.selected_tabs = new Map(e.$selected_tabs);
+	#handle_selected_tabs_change(e: CustomEvent<{ selected_tabs: SelectedStashtabs }>): void {
+		this.selected_tabs = new Map(e.detail.selected_tabs);
 		this.dispatchEvent(new SelectedTabsChangeEvent(this.selected_tabs));
-		if (this.multiselect && this.selected_tabs.size === 0) {
+
+		// Enable multiselect mode if multiple tabs are selected
+		if (this.selected_tabs.size > 1) {
+			this.multiselect = true;
+			this.opened_tab = null;
+			this.#updateAggregatedMemo();
+		} else if (this.selected_tabs.size === 0) {
+			this.multiselect = false;
 			this.opened_tab = null;
 		}
-		if (this.multiselect && this.selected_tabs.size > 0) {
-			const ids = Array.from(this.selected_tabs.keys());
-			const cachedTabs: Array<TabWithItems> = ids
-				.map(id => this.#getCachedTab(id))
-				.filter((t): t is TabWithItems => t !== null);
-			const allCached = cachedTabs.length === ids.length && cachedTabs.every(t => Array.isArray(t.items) && t.items.length > 0);
-			if (!allCached && !this.fetchingStashTab) {
-				const prev = this.downloadAs;
-				this.downloadAs = 'general-tab';
-				this.#load_selected_tabs(this.league).finally(() => {
-					this.downloadAs = prev;
-				});
-			}
-		}
-		this.#updateAggregatedMemo();
 	}
+
 	#handle_tab_badge_click(e: TabClickEvent): void {
 		const clicked = e.$tab;
 		if (!clicked.parent && Array.isArray(clicked.children) && clicked.children.length > 0) {
@@ -582,10 +586,14 @@ export class StashesViewElement extends LitElement {
 			this.opened_tab = withItems ?? clicked.children[0];
 			return;
 		}
+
+		// Switch to single-selection mode when clicking a tab
+		this.multiselect = false;
+		const newSelection = new Map();
+		newSelection.set(clicked.id, { id: clicked.id, name: clicked.name });
+		this.selected_tabs = newSelection;
+		this.dispatchEvent(new SelectedTabsChangeEvent(this.selected_tabs));
 		this.opened_tab = clicked;
-	}
-	#change_multiselect(e: MultiselectChangeEvent): void {
-		this.multiselect = e.$multiselect;
 	}
 	#emitExtractCards(e: ContainerExtractCardsEvent) {
 		this.cardsJustExtracted = true;
@@ -612,19 +620,14 @@ export class StashesViewElement extends LitElement {
 				this.noStashesMessage = 'No stashes here. Try to change the league';
 			}
 		} catch (err) {
-			if (err instanceof Error) {
-				this.noStashesMessage = err.message;
-			} else if (typeof err === 'string') {
-				this.noStashesMessage = err;
-			} else if (typeof err === 'object' && err !== null && 'message' in err) {
-				const msg = (err as any).message;
-				this.noStashesMessage = msg;
-				if (typeof msg === 'string' && (msg.includes('401') || msg.includes('invalid_token'))) {
-					this.dispatchEvent(new AuthErrorEvent());
-				}
-			} else {
-				throw err;
+			const msg = this.#errorMessage(err);
+			this.noStashesMessage = msg;
+			if (typeof msg === 'string' && (msg.includes('401') || msg.includes('invalid_token'))) {
+				this.dispatchEvent(new AuthErrorEvent());
 			}
+			this.#handleError('load-stashes', err, async () => {
+				this.stashtabs_badges = await this.stashLoader.tabs(this.league);
+			}, 'Retry loading stashes');
 		} finally {
 			this.fetchingStash = false;
 		}
@@ -710,7 +713,7 @@ export class StashesViewElement extends LitElement {
 		try {
 			if (!allCached) {
 				for (const id of selected) {
-					if (this.tabsCache.has(id)) continue;
+					if (this.#cache.has(id)) continue;
 					const badge = this.stashtabs_badges.find(t => t.id === id)!;
 					const loaded = await this.#loadSingleTabContent('general-tab', id, this.league, (_sid, _lg) => this.stashLoader.tabFromBadge(badge, this.league), true);
 					if (loaded) this.#setCachedTab(loaded.id, loaded);
@@ -751,8 +754,9 @@ export class StashesViewElement extends LitElement {
 			this.showWealth = this.snapshots.length > 0;
 			this.msg = '';
 		} catch (err) {
-			this.msg = this.#errorMessage(err);
-			this.#toast('danger', this.msg);
+			const msg = this.#errorMessage(err);
+			this.msg = msg;
+			this.#handleError('load-snapshots', err, async () => { await this.#loadSnapshots(); }, 'Retry');
 		} finally {
 			this.snapshotsLoading = false;
 		}
@@ -845,6 +849,56 @@ export class StashesViewElement extends LitElement {
 		}
 	}
 
+	#renderCategoryList(snapshot: any) {
+		const total = snapshot.total_chaos || 0;
+		if (total === 0) return nothing;
+
+		const entries = Object.entries(snapshot.by_category || {})
+			.map(([name, data]: [string, any]) => ({
+				name: categoryFromKey(name),
+				value: data.chaos || 0,
+				percent: ((data.chaos || 0) / total) * 100
+			}))
+			.filter(e => e.value > 0)
+			.sort((a, b) => b.value - a.value);
+
+		return html`
+			<div class="category-compact-list">
+				${entries.map(cat => html`
+					<div class="cat-compact-item">
+						<div class="cat-compact-header">
+							<span class="cat-compact-name">${cat.name}</span>
+							<span class="cat-compact-value">${Math.round(cat.value).toLocaleString()}c</span>
+						</div>
+						<div class="cat-compact-bar-bg">
+							<div class="cat-compact-bar" style="width: ${cat.percent}%; background: ${this.#getCategoryColor(cat.name)}"></div>
+							<span class="cat-compact-percent">${cat.percent.toFixed(1)}%</span>
+						</div>
+					</div>
+				`)}
+			</div>
+		`;
+	}
+
+	#getCategoryColor(category: string): string {
+		const colors: Record<string, string> = {
+			'Currency': '#f59e0b',
+			'Fragment': '#ec4899',
+			'Divination Card': '#8b5cf6',
+			'Gem': '#ef4444',
+			'Other': '#6b7280',
+			'Essence': '#f97316',
+			'Map': '#3b82f6',
+			'Fossil': '#14b8a6',
+			'Resonator': '#a855f7',
+			'Oil': '#eab308',
+			'Incubator': '#10b981',
+			'Scarab': '#06b6d4',
+			'Delirium Orb': '#6366f1',
+			'Vial': '#84cc16'
+		};
+		return colors[category] || '#6b7280';
+	}
 	#getTopCategories(snapshot: any): Array<{ name: string; value: number; percent: number }> {
 		const total = snapshot.total_chaos || 1;
 		const entries = Object.entries(snapshot.by_category || {})
@@ -919,8 +973,7 @@ export class StashesViewElement extends LitElement {
 		const chaosSign = chaosDiff > 0 ? '+' : '';
 		const trendIcon = chaosDiff > 0 ? 'arrow-up-short' : chaosDiff < 0 ? 'arrow-down-short' : 'dash';
 
-		const catCount = Object.keys(latest.by_category || {}).length;
-		const sizeClass = catCount <= 4 ? 'size-large' : catCount <= 8 ? 'size-medium' : 'size-compact';
+		/* removed unused sizeClass computation */
 
 		// Stats calculations
 		let rate = 0;
@@ -1021,11 +1074,11 @@ export class StashesViewElement extends LitElement {
                     `}
                 </div>
 
-                <div class="charts">
+                <div class="wealth-content-grid">
                     <div class="chart-container">
-                        <div class="chart-header">
+                         <div class="chart-header">
                             <div class="chart-title">Wealth Trend</div>
-                            <div class="chart-controls" style="display:flex;gap:0.5rem;">
+                            <div class="chart-controls">
                                 <sl-radio-group size="small" value=${this.chartMode} @sl-change=${(e: any) => this.chartMode = e.target.value}>
                                     <sl-radio-button value="chaos">Chaos</sl-radio-button>
                                     <sl-radio-button value="divine">Divine</sl-radio-button>
@@ -1036,24 +1089,22 @@ export class StashesViewElement extends LitElement {
                                 </sl-radio-group>
                             </div>
                         </div>
-                        <canvas 
+                        <canvas
                             id="wealth-line"
                             @mousemove=${this.#onChartMouseMove}
                             @mouseleave=${this.#onChartMouseLeave}
                         ></canvas>
                         ${this.#renderTooltip()}
                     </div>
-                    <div class="chart-container">
-                         <div class="chart-header">
-                            <div class="chart-title">Category Breakdown</div>
-                         </div>
-                        <canvas id="wealth-bars"></canvas>
+
+                    <div class="category-breakdown-panel">
+                        <div class="panel-header">
+                            <sl-icon name="pie-chart-fill"></sl-icon>
+                            <span>Category Breakdown</span>
+                        </div>
+						${this.#renderCategoryList(latest)}
                     </div>
                 </div>
-                
-				<div class="category-list ${sizeClass}">
-					${this.#renderCategoryList(latest)}
-				</div>
 			</section>
 		`;
 	}
@@ -1127,15 +1178,17 @@ export class StashesViewElement extends LitElement {
 			this.priceChangesData = [];
 			return;
 		}
-
 		this.loadingPriceChanges = true;
 		this.priceChangesData = [];
-
 		try {
-			// If no tabs selected, fallback to snapshot-only category breakdown
-			if (this.selected_tabs.size === 0) {
+			const latest = this.snapshots[0];
+			const prev = this.snapshots[1];
+			const latestPrices = latest.item_prices || {};
+			const prevPrices = prev?.item_prices || {};
+			const latestKeys = Object.keys(latestPrices);
+			const prevKeys = Object.keys(prevPrices);
+			if (!prev || prevKeys.length === 0) {
 				this.priceChangeMode = 'category';
-				const latest = this.snapshots[0];
 				const snapshotCats = latest.by_category || {};
 				const rows = Object.entries(snapshotCats)
 					.map(([category, v]) => {
@@ -1147,202 +1200,62 @@ export class StashesViewElement extends LitElement {
 				return;
 			}
 
-			// Get current prices
-			const [currency, fragments, oils, incubators, fossils, resonators, deliriumOrbs, vials, cards, maps, gems] = await Promise.all([
-				this.stashLoader.currencyPrices(this.league),
-				this.stashLoader.fragmentPrices(this.league),
-				this.stashLoader.oilPrices(this.league),
-				this.stashLoader.incubatorPrices(this.league),
-				this.stashLoader.fossilPrices(this.league),
-				this.stashLoader.resonatorPrices(this.league),
-				this.stashLoader.deliriumOrbPrices(this.league),
-				this.stashLoader.vialPrices(this.league),
-				this.stashLoader.divinationCardPrices(this.league),
-				this.stashLoader.mapPrices(this.league),
-				this.stashLoader.gemPrices(this.league),
-			]);
+			this.priceChangeMode = 'item';
+			const setLatest = new Set(latestKeys);
+			const setPrev = new Set(prevKeys);
 
-			// Build current price map
-			const currentPrices = new Map<string, { price: number; category: string }>();
-			const currentGemPrices = new Map<string, number>();
+			const rows: Array<any> = [];
 
-			const addPrices = (rows: Array<{ name: string; chaos_value: number | null }>, category: string) => {
-				rows.forEach(r => {
-					if (r && typeof r.name === 'string' && typeof r.chaos_value === 'number') {
-						currentPrices.set(r.name, { price: r.chaos_value, category });
-					}
+			for (const name of latestKeys) {
+				const cur = Number((latestPrices as any)[name] ?? 0);
+				const snap = Number((prevPrices as any)[name] ?? 0);
+				const isNew = !setPrev.has(name);
+				const diff = cur - snap;
+				const percent = snap > 0 ? (diff / snap) * 100 : 0;
+				rows.push({
+					name,
+					category: '',
+					qty: null,
+					snapshotPrice: snap,
+					currentPrice: cur,
+					changePercent: percent,
+					totalChange: diff,
+					isNew,
+					isRemoved: false,
 				});
-			};
-
-			addPrices(currency, 'Currency');
-			addPrices(fragments, 'Fragment');
-			addPrices(oils, 'Oil');
-			addPrices(incubators, 'Incubator');
-			addPrices(fossils, 'Fossil');
-			addPrices(resonators, 'Resonator');
-			addPrices(deliriumOrbs, 'Delirium Orb');
-			addPrices(vials, 'Vial');
-			addPrices(cards, 'Divination Card');
-			addPrices(maps, 'Map');
-			gems.forEach((r: any) => {
-				const name = typeof r?.name === 'string' ? r.name : '';
-				const level = Number(r?.level ?? 0) || 0;
-				const quality = Number(r?.quality ?? 0) || 0;
-				const corrupt = Boolean(r?.corrupt ?? false);
-				const price = typeof r?.chaos_value === 'number' ? r.chaos_value : 0;
-				if (name && price > 0) currentGemPrices.set(gemKey(name, level, quality, corrupt), price);
-			});
-
-			// Use previous snapshot if available, otherwise latest (which will show 0 variance vs live usually)
-			const baselineSnapshot = this.snapshots.length > 1 ? this.snapshots[1] : this.snapshots[0];
-
-			// Check if snapshot has item prices
-			if (baselineSnapshot.item_prices) {
-				this.priceChangeMode = 'item';
-
-				// Get items from cached tabs
-				const items: Map<string, { qty: number; category: string; name: string; isGem: boolean; gl?: number; gq?: number; gc?: boolean }> = new Map();
-				for (const tabId of this.selected_tabs.keys()) {
-					const cached = this.#getCachedTab(tabId);
-					if (cached && cached.items) {
-						cached.items.forEach(item => {
-							const baseName = item.typeLine || item.baseType || item.name;
-							const qty = item.stackSize ?? 1;
-							const gl = getGemLevel(item);
-							const gq = getGemQuality(item);
-							const gc = isCorrupted(item);
-							const gem = isGem(item);
-							const key = gem ? gemKey(baseName, gl, gq, gc) : baseName;
-							const existing = items.get(key);
-							if (existing) {
-								existing.qty += qty;
-							} else {
-								const priceInfo = currentPrices.get(baseName);
-								items.set(key, {
-									qty,
-									category: gem ? 'Gem' : (priceInfo?.category || 'Other'),
-									name: baseName,
-									isGem: gem,
-									gl: gem ? gl : undefined,
-									gq: gem ? gq : undefined,
-									gc: gem ? gc : undefined,
-								});
-							}
-						});
-					}
-				}
-
-				const changes: Array<any> = [];
-				items.forEach((itemData) => {
-					let currentPrice = 0;
-					let snapshotPrice = 0;
-					if (itemData.isGem) {
-						const name = itemData.name;
-						const gl = itemData.gl || 0;
-						const gq = itemData.gq || 0;
-						const gc = !!itemData.gc;
-						if (gl === 20 && gq === 20) {
-							currentPrice = currentGemPrices.get(gemKey(name, 20, 20, gc)) || currentGemPrices.get(gemKey(name, 20, 20, false)) || 0;
-							snapshotPrice = baselineSnapshot.item_prices?.[gemKey(name, 20, 20, gc)] || baselineSnapshot.item_prices?.[gemKey(name, 20, 20, false)] || baselineSnapshot.item_prices?.[name] || 0;
-						} else {
-							currentPrice = currentGemPrices.get(gemKey(name, 1, 0, false)) || currentGemPrices.get(gemKey(name, gl, gq, false)) || currentPrices.get(name)?.price || 0;
-							snapshotPrice = baselineSnapshot.item_prices?.[gemKey(name, 1, 0, false)] || baselineSnapshot.item_prices?.[gemKey(name, gl, gq, false)] || baselineSnapshot.item_prices?.[name] || 0;
-						}
-					} else {
-						const currentInfo = currentPrices.get(itemData.name);
-						currentPrice = currentInfo?.price || 0;
-						snapshotPrice = baselineSnapshot.item_prices?.[itemData.name] || 0;
-					}
-
-					if (currentPrice === 0 && snapshotPrice === 0) return;
-
-					const change = currentPrice - snapshotPrice;
-					const changePercent = snapshotPrice > 0 ? (change / snapshotPrice) * 100 : (currentPrice > 0 ? 100 : 0);
-					const totalChange = change * itemData.qty;
-
-					if (Math.abs(totalChange) >= 0) {
-						changes.push({
-							name: itemData.name,
-							category: itemData.category,
-							qty: itemData.qty,
-							snapshotPrice,
-							currentPrice,
-							change,
-							changePercent,
-							totalChange,
-						});
-					}
-				});
-
-				changes.sort((a, b) => Math.abs(b.totalChange) - Math.abs(a.totalChange));
-				this.priceChangesData = changes;
-
-			} else {
-				this.priceChangeMode = 'category';
-
-				// Calculate current category totals
-				const currentCategories = new Map<string, { total: number; items: Array<{ name: string; qty: number; total: number }> }>();
-
-				for (const tabId of this.selected_tabs.keys()) {
-					const cached = this.#getCachedTab(tabId);
-					if (cached && cached.items) {
-						cached.items.forEach(item => {
-							const name = item.typeLine || item.baseType || item.name;
-							const qty = item.stackSize ?? 1;
-							const priceInfo = currentPrices.get(name);
-							if (priceInfo) {
-								const total = priceInfo.price * qty;
-								const cat = priceInfo.category;
-
-								if (!currentCategories.has(cat)) {
-									currentCategories.set(cat, { total: 0, items: [] });
-								}
-
-								const catData = currentCategories.get(cat)!;
-								catData.total += total;
-
-								const existingItem = catData.items.find(i => i.name === name);
-								if (existingItem) {
-									existingItem.qty += qty;
-									existingItem.total += total;
-								} else {
-									catData.items.push({ name, qty, total });
-								}
-							}
-						});
-					}
-				}
-
-				const snapshotCats = baselineSnapshot.by_category || {};
-				const changes: Array<any> = [];
-				const allCats = new Set([...currentCategories.keys(), ...Object.keys(snapshotCats)]);
-
-				for (const cat of allCats) {
-					const current = currentCategories.get(cat);
-					const currentTotal = current?.total || 0;
-					const snapshotTotal = (snapshotCats[cat] as any)?.chaos || 0;
-					const diff = currentTotal - snapshotTotal;
-					const diffPercent = snapshotTotal > 0 ? (diff / snapshotTotal) * 100 : 0;
-					const topItems = current?.items.sort((a, b) => b.total - a.total).slice(0, 5) || [];
-
-					if (Math.abs(diff) >= 0) {
-						changes.push({
-							category: cat,
-							snapshotTotal,
-							currentTotal,
-							diff,
-							diffPercent,
-							topItems
-						});
-					}
-				}
-
-				changes.sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
-				this.priceChangesData = changes;
 			}
+
+			for (const name of prevKeys) {
+				if (!setLatest.has(name)) {
+					const snap = Number((prevPrices as any)[name] ?? 0);
+					const cur = 0;
+					const diff = cur - snap;
+					const percent = snap > 0 ? (diff / snap) * 100 : 0;
+					rows.push({
+						name,
+						category: '',
+						qty: null,
+						snapshotPrice: snap,
+						currentPrice: cur,
+						changePercent: percent,
+						totalChange: diff,
+						isNew: false,
+						isRemoved: true,
+					});
+				}
+			}
+
+			const groups = Object.groupBy(rows, r => r.name.includes('__') ? r.name.split('__')[0] : r.name);
+			const deduped: Array<any> = [];
+			for (const key of Object.keys(groups)) {
+				const group = groups[key] || [];
+				const composite = group.find(g => g.name.includes('__'));
+				deduped.push(composite || group[0]);
+			}
+			this.priceChangesData = deduped.sort((a, b) => Math.abs(b.totalChange) - Math.abs(a.totalChange));
 		} catch (err) {
-			console.error('Failed to calculate price changes:', err);
 			this.priceChangesData = [];
+			this.#handleError('price-variance', err, async () => { await this.#calculatePriceChanges(); }, 'Retry');
 		} finally {
 			this.loadingPriceChanges = false;
 		}
@@ -1368,8 +1281,10 @@ export class StashesViewElement extends LitElement {
 		}
 
 		if (this.priceChangeMode === 'item') {
-			const topGainers = this.priceChangesData.filter(i => i.totalChange > 0);
-			const topLosers = this.priceChangesData.filter(i => i.totalChange < 0);
+			const newItems = this.priceChangesData.filter(i => i.isNew);
+			const removedItems = this.priceChangesData.filter(i => i.isRemoved);
+			const topGainers = this.priceChangesData.filter(i => !i.isNew && !i.isRemoved && i.totalChange > 0);
+			const topLosers = this.priceChangesData.filter(i => !i.isNew && !i.isRemoved && i.totalChange < 0);
 			const totalVariance = this.priceChangesData.reduce((acc, item) => acc + item.totalChange, 0);
 
 			return html`
@@ -1393,6 +1308,56 @@ export class StashesViewElement extends LitElement {
 					</div>
 
 					<div class="price-tables">
+                        ${newItems.length > 0 ? html`
+                            <div class="price-table-container">
+                                <h4 class="price-table-title">
+                                    <sl-icon name="plus-circle"></sl-icon>
+                                    New Items in Latest Snapshot
+                                </h4>
+                                <div class="price-table">
+                                    <div class="price-table-header">
+                                        <div>Item</div>
+                                        <div>Snapshot</div>
+                                        <div>Current</div>
+                                        <div>Diff</div>
+                                    </div>
+                                    ${newItems.map(item => html`
+                                        <div class="price-table-row">
+                                            <div class="item-name" title="${item.name}">
+                                                ${item.name}
+                                            </div>
+                                            <div>${item.snapshotPrice?.toFixed(1)}c</div>
+                                            <div>${item.currentPrice?.toFixed(1)}c</div>
+                                            <div class="price-change positive">+${(item.currentPrice - (item.snapshotPrice || 0)).toFixed(1)}c</div>
+                                        </div>
+                                    `)}
+                                </div>
+                            </div>
+                        ` : nothing}
+                        ${removedItems.length > 0 ? html`
+                            <div class="price-table-container">
+                                <h4 class="price-table-title negative">
+                                    <sl-icon name="dash-circle"></sl-icon>
+                                    Removed Items Since Previous Snapshot
+                                </h4>
+                                <div class="price-table">
+                                    <div class="price-table-header">
+                                        <div>Item</div>
+                                        <div>Snapshot</div>
+                                        <div>Change</div>
+                                    </div>
+                                    ${removedItems.map(item => html`
+                                        <div class="price-table-row">
+                                            <div class="item-name" title="${item.name}">
+                                                ${item.name}
+                                            </div>
+                                            <div>${item.snapshotPrice?.toFixed(1)}c</div>
+                                            <div class="total-impact negative">${item.totalChange.toFixed(1)}c</div>
+                                        </div>
+                                    `)}
+                                </div>
+                            </div>
+                        ` : nothing}
 						${topGainers.length > 0 ? html`
 							<div class="price-table-container">
 								<h4 class="price-table-title positive">
@@ -1525,40 +1490,6 @@ export class StashesViewElement extends LitElement {
 				</div>
 			`;
 		}
-	}
-
-	#renderCategoryList(latest: any) {
-		const total = latest.total_chaos || 1;
-		const entries = Object.entries(latest.by_category || {}).map(([k, v]) => ({ name: k, chaos: (v as any).chaos || 0 }));
-		entries.sort((a, b) => b.chaos - a.chaos);
-
-		const getIcon = (name: string) => {
-			if (name.includes('currency')) return 'coin';
-			if (name.includes('card')) return 'postcard';
-			if (name.includes('essence')) return 'droplet';
-			if (name.includes('fragment')) return 'puzzle';
-			if (name.includes('map')) return 'map';
-			return 'box';
-		};
-
-		return html`${entries.map(e => {
-			const pct = (e.chaos / total) * 100;
-			return html`
-				<div class="category-card">
-					<div class="category-icon">
-						<sl-icon name="${getIcon(e.name)}"></sl-icon>
-					</div>
-					<div class="category-details">
-						<div class="category-header">
-							<span class="cat-name">${e.name}</span>
-							<span class="cat-val">${Math.round(e.chaos).toLocaleString()} <small class="category-pct">(${pct.toFixed(1)}%)</small></span>
-						</div>
-						<div class="progress-bar">
-							<div class="progress-fill" style="width: ${pct}%"></div>
-						</div>
-					</div>
-				</div>`;
-		})}`;
 	}
 
 
@@ -1950,13 +1881,7 @@ export class StashesViewElement extends LitElement {
 		}
 	}
 
-	async #waitForLoadsAvailable() {
-		while (this.stashLoadsAvailable === 0) {
-			this.msg = 'Loads available: 0. Waiting for cooldown.';
-			await sleepSecs(1);
-		}
-		this.msg = '';
-	}
+
 
 	async #loadSingleTabContent<T>(
 		kind: 'general-tab' | 'sample',
@@ -1976,76 +1901,24 @@ export class StashesViewElement extends LitElement {
 			}
 		}
 
-		await this.#waitForLoadsAvailable();
-		this.stashLoadsAvailable--;
-		setTimeout(() => {
-			this.stashLoadsAvailable++;
-		}, SECS_300);
-		try {
-			// Add 30s timeout to prevent hanging
-			const timeoutPromise = new Promise<never>((_, reject) =>
-				setTimeout(() => reject(new Error('Request timed out')), 30000)
-			);
-			const singleTabContent = await Promise.race([
-				loadFunction(id, league),
-				timeoutPromise
-			]);
-			return singleTabContent;
-		} finally {
-			// run again go clear wait-messages when time comes
-			this.#waitForLoadsAvailable();
+		const result = await this.#loader.request(() => Promise.resolve(loadFunction(id, league)));
+		return result as T;
+	}
+
+	#handleError(tag: string, err: unknown, retry?: () => Promise<void>, retryLabel?: string): void {
+		const message = typeof err === 'string' ? err : err instanceof Error ? err.message : 'Unknown error';
+		const payload = { tag, message } as const;
+		console.error('StashesViewError', payload);
+		this.#toast('danger', message);
+		if (retry) {
+			this.lastError = payload as any;
+			this.retryLabel = retryLabel ?? 'Retry';
+			this.retryCallback = retry;
 		}
 	}
 }
 
-function isGem(item: any): boolean {
-	const ft = (item as any).frameType;
-	const props = (item as any).properties || [];
-	const hasGemProp = Array.isArray(props) && props.some((p: any) => p?.name === 'Gem Level' || p?.name === 'Level');
-	return ft === 4 || hasGemProp;
-}
 
-function getGemLevel(item: any): number {
-	const p = item.properties || [];
-	for (const prop of p) {
-		if ((prop as any).name === 'Gem Level' || (prop as any).name === 'Level') {
-			const val = Array.isArray((prop as any).values) && (prop as any).values?.[0]?.[0];
-			if (val !== undefined && val !== null) {
-				const v = String(val);
-				const m = v.match(/(\d+)/);
-				if (m) return parseInt(m[1], 10);
-			}
-		}
-	}
-	return 0;
-}
-
-function getGemQuality(item: any): number {
-	const p = item.properties || [];
-	for (const prop of p) {
-		if ((prop as any).name === 'Quality') {
-			const val = Array.isArray((prop as any).values) && (prop as any).values?.[0]?.[0];
-			if (val !== undefined && val !== null) {
-				const v = String(val);
-				const m = v.match(/(\d+)/);
-				if (m) return parseInt(m[1], 10);
-			}
-		}
-	}
-	return 0;
-}
-
-function isCorrupted(item: any): boolean {
-	return Boolean((item as any).corrupted);
-}
-
-function gemKey(name: string, level: number, quality: number, corrupt: boolean): string {
-	return `${name}__${level}__${quality}__${corrupt ? 'c' : 'u'}`;
-}
-
-const sleepSecs = async (secs: number): Promise<void> => {
-	return new Promise(r => setTimeout(r, secs * 1000));
-};
 const sleepMs = async (ms: number): Promise<void> => {
 	return new Promise(r => setTimeout(r, ms));
 };

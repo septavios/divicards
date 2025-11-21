@@ -1,6 +1,13 @@
 import { html, css, LitElement, CSSResult, TemplateResult } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { emit } from '../utils.js';
+import '@shoelace-style/shoelace/dist/components/button/button.js';
+import '@shoelace-style/shoelace/dist/components/dropdown/dropdown.js';
+import '@shoelace-style/shoelace/dist/components/menu/menu.js';
+import '@shoelace-style/shoelace/dist/components/menu-item/menu-item.js';
+import '@shoelace-style/shoelace/dist/components/avatar/avatar.js';
+import '@shoelace-style/shoelace/dist/components/icon/icon.js';
+import '@shoelace-style/shoelace/dist/components/divider/divider.js';
 
 declare global {
 	interface HTMLElementTagNameMap {
@@ -15,19 +22,42 @@ export class GoogleAuthElement extends LitElement {
 	@property({ reflect: true }) name: string = '';
 	@property({ reflect: true }) picture: string = '';
 	@property({ type: Boolean, reflect: true }) loggedIn: boolean = false;
+
 	protected override render(): TemplateResult {
-		const logoutButton = html`<button @click=${this.#emitLogout}>Logout</button>`;
-		const loginButton = html`<button @click=${this.#emitLogin}>Login Sheets</button>`;
-
-		const template = this.loggedIn
-			? html`<div class="logged-in">
-					<img src=${this.picture} alt="user avatar" width="32" height="32" />
-					<p>${this.name}</p>
-					${logoutButton}
-			  </div>`
-			: html`<div>${loginButton}</div>`;
-
-		return html`<div class="auth">${template}</div>`;
+		return html`
+			<div class="auth">
+				${this.loggedIn
+				? html`
+						<sl-dropdown>
+							<div slot="trigger" class="profile-trigger">
+								<sl-avatar 
+									image=${this.picture} 
+									label=${this.name} 
+									style="--size: 2rem;"
+								></sl-avatar>
+								<sl-icon name="chevron-down" class="chevron"></sl-icon>
+							</div>
+							<sl-menu>
+								<sl-menu-item disabled>
+									<sl-icon name="google" slot="prefix"></sl-icon>
+									${this.name}
+								</sl-menu-item>
+								<sl-divider></sl-divider>
+								<sl-menu-item @click=${this.#emitLogout}>
+									<sl-icon name="box-arrow-right" slot="prefix"></sl-icon>
+									Logout
+								</sl-menu-item>
+							</sl-menu>
+						</sl-dropdown>
+					  `
+				: html`
+						<sl-button variant="default" size="small" @click=${this.#emitLogin}>
+							<sl-icon name="google" slot="prefix"></sl-icon>
+							Sign in
+						</sl-button>
+					  `}
+			</div>
+		`;
 	}
 
 	#emitLogin() {
@@ -41,19 +71,30 @@ export class GoogleAuthElement extends LitElement {
 
 function styles() {
 	return css`
-		.auth {
-			position: relative;
+		:host {
+			display: block;
 		}
-		.logged-in {
+		
+		.profile-trigger {
 			display: flex;
 			align-items: center;
-			justify-self: center;
-			gap: 1rem;
+			gap: 0.25rem;
+			cursor: pointer;
+			padding: 0.25rem;
+			border-radius: 99px;
+			transition: background-color 0.2s ease;
+			border: 1px solid transparent;
 		}
 
-		.logs {
-			opacity: 0.6;
-			font-size: 80%;
+		.profile-trigger:hover {
+			background-color: var(--sl-color-neutral-100);
+			border-color: var(--sl-color-neutral-200);
+		}
+
+		.chevron {
+			font-size: 0.75rem;
+			color: var(--sl-color-neutral-500);
+			margin-right: 0.25rem;
 		}
 	`;
 }

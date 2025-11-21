@@ -13,6 +13,8 @@ import { useAutoAnimate } from './composables/useAutoAnimate';
 import '@shoelace-style/shoelace/dist/components/copy-button/copy-button.js';
 import '@shoelace-style/shoelace/dist/components/alert/alert.js';
 import '@shoelace-style/shoelace/dist/components/checkbox/checkbox.js';
+import '@shoelace-style/shoelace/dist/components/icon-button/icon-button.js';
+import '@shoelace-style/shoelace/dist/components/divider/divider.js';
 import { BasePopupElement } from '@divicards/wc/e-base-popup.js';
 import UpdateChangelog from './components/UpdateChangelog.vue';
 import NativeBrowserLink from './components/NativeBrowserLink.vue';
@@ -329,62 +331,88 @@ const handleDropZoneDrop = (event: DragEvent) => {
 		</div>
         <header class="toolbar">
             <div class="toolbar__left">
-                <e-league-select with-private-league-input :private-league-disabled="!showPrivateLeague" :league="league" @change:league="changeLeague"></e-league-select>
-                <sl-checkbox :checked="showPrivateLeague" @sl-change="(e: any) => showPrivateLeague = e.target.checked">Private League</sl-checkbox>
-                <sl-button variant="primary" @click="openStashWindow()"
-                    >Load from Stash</sl-button
-                >
-                <sl-button variant="default" @click="bulkLoadStash">Bulk load Stash</sl-button>
-                
-                <e-import-file-tip v-if="!isDragging && shouldShowImportActions"></e-import-file-tip>
+                <div class="toolbar-group">
+                    <e-league-select with-private-league-input :private-league-disabled="!showPrivateLeague" :league="league" @change:league="changeLeague"></e-league-select>
+                    <sl-checkbox :checked="showPrivateLeague" @sl-change="(e: any) => showPrivateLeague = e.target.checked">Private League</sl-checkbox>
+                </div>
+                <div class="toolbar-group">
+
+                    <sl-button variant="default" @click="bulkLoadStash">
+                        <sl-icon slot="prefix" name="collection"></sl-icon>
+                        Bulk stash load
+                    </sl-button>
+                    <e-import-file-tip v-if="!isDragging && shouldShowImportActions"></e-import-file-tip>
+                </div>
             </div>
             <div class="toolbar__right">
-                <sl-button v-if="!googleAuthStore.loggedIn" @click="googleAuthStore.login" variant="default"
-                    >Sign in with Google</sl-button
-                >
-                <sl-button
-                    v-if="googleAuthStore.loggedIn"
-                    :disabled="!hasExportableSample"
-                    @click="quickExportToSheets"
-                    variant="primary"
-                    >Export to Google Sheets</sl-button
-                >
-                <sl-input
-                    v-if="googleAuthStore.loggedIn"
-                    class="spreadsheet-id-input"
-                    placeholder="Saved Spreadsheet ID"
-                    :value="googleAuthStore.spreadsheetId"
-                    @sl-input="(e: any) => (googleAuthStore.spreadsheetId = e.target.value)"
-                ></sl-input>
-                <sl-button v-if="googleAuthStore.loggedIn" variant="default" @click="() => settingsPopupRef?.showModal()"
-                    >Settings</sl-button
-                >
-                <e-google-auth
-                    v-if="googleAuthStore.loggedIn"
-                    @login="googleAuthStore.login"
-                    @logout="googleAuthStore.logout"
-                    :name="googleAuthStore.name"
-                    :picture="googleAuthStore.picture"
-                    :loggedIn="googleAuthStore.loggedIn"
-                ></e-google-auth>
-                <e-poe-auth
-                    @poe-auth__login="authStore.login"
-                    @poe-auth__logout="authStore.logout"
-                    :auth="{
-                        loggedIn: authStore.loggedIn,
-                        username: authStore.name,
-                    }"
-                ></e-poe-auth>
-                <sl-button
+                <div class="toolbar-group" v-if="googleAuthStore.loggedIn">
+                    <sl-button
+                        :disabled="!hasExportableSample"
+                        @click="quickExportToSheets"
+                        variant="success"
+                        outline
+                    >
+                        <sl-icon slot="prefix" name="file-earmark-spreadsheet"></sl-icon>
+                        Export
+                    </sl-button>
+                    <sl-input
+                        class="spreadsheet-id-input"
+                        placeholder="Sheet ID"
+                        :value="googleAuthStore.spreadsheetId"
+                        @sl-input="(e: any) => (googleAuthStore.spreadsheetId = e.target.value)"
+                    ></sl-input>
+                     <e-google-auth
+                        @login="googleAuthStore.login"
+                        @logout="googleAuthStore.logout"
+                        :name="googleAuthStore.name"
+                        :picture="googleAuthStore.picture"
+                        :loggedIn="googleAuthStore.loggedIn"
+                    ></e-google-auth>
+                </div>
+
+                <div class="toolbar-group">
+                     <sl-button v-if="!googleAuthStore.loggedIn" @click="googleAuthStore.login" variant="default" size="small">
+                        <sl-icon slot="prefix" name="google"></sl-icon>
+                        Sign in google
+                    </sl-button>
+                    
+                    <sl-icon-button name="gear" label="Settings" style="font-size: 1.2rem;" @click="settingsPopupRef?.showModal()"></sl-icon-button>
+                    
+                    <e-theme-toggle @theme-toggle__change:theme="handle_change_theme"></e-theme-toggle>
+                    
+                    <e-poe-auth
+                        @poe-auth__login="authStore.login"
+                        @poe-auth__logout="authStore.logout"
+                        :auth="{
+                            loggedIn: authStore.loggedIn,
+                            username: authStore.name,
+                        }"
+                    ></e-poe-auth>
+                </div>
+                 <sl-button
                     variant="success"
+                    size="small"
                     v-if="update && update.available"
                     @click="() => changelogPopupRef?.showModal()"
-                    >Update is ready</sl-button
+                    >Update Ready</sl-button
                 >
-                <e-theme-toggle @theme-toggle__change:theme="handle_change_theme"></e-theme-toggle>
             </div>
         </header>
-        <sl-divider></sl-divider>
+
+        <!-- Empty State -->
+        <div v-if="!stashVisible && !sampleStore.sampleCards.length && !sampleStore.merged && !bulkMode" class="empty-state">
+            <div class="empty-state-content">
+                <sl-icon name="cloud-upload" class="empty-state-icon"></sl-icon>
+                <h2 class="empty-state-title">Drag & Drop files here</h2>
+                <p class="empty-state-sub">or load directly from your stash</p>
+                <div class="empty-state-actions">
+                     <sl-button variant="primary" size="large" @click="openStashWindow()">
+                        <sl-icon slot="prefix" name="box-seam"></sl-icon>
+                        Load from Stash
+                    </sl-button>
+                </div>
+            </div>
+        </div>
 
         <e-base-popup v-if="update" ref="changelogPopupRef">
             <UpdateChangelog @update-clicked="installAndRelaunch" :version="update.version" />
@@ -503,7 +531,7 @@ const handleDropZoneDrop = (event: DragEvent) => {
     margin: 0 auto;
 	display: flex;
 	flex-direction: column;
-	gap: 1.5rem;
+	gap: 0.5rem;
 }
 
 .drop-zone--active {
@@ -528,25 +556,119 @@ const handleDropZoneDrop = (event: DragEvent) => {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 1rem 1.5rem;
+    padding: 0.75rem 1.5rem;
     background: var(--sl-color-neutral-0);
     border-radius: 1rem;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    box-shadow: 0 4px 20px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.02);
     border: 1px solid var(--sl-color-neutral-200);
     flex-wrap: wrap;
     gap: 1rem;
+    color: var(--sl-color-neutral-900);
+}
+
+:global(.sl-theme-dark) .toolbar {
+    background: var(--sl-color-neutral-800);
+    border-color: var(--sl-color-neutral-700);
+    color: var(--sl-color-neutral-100);
+    box-shadow: 0 4px 20px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
 }
 
 .toolbar__left,
 .toolbar__right {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.75rem;
+    gap: 1.5rem;
     align-items: center;
 }
 
+.toolbar-group {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding-right: 1.5rem;
+    border-right: 1px solid var(--sl-color-neutral-200);
+}
+
+:global(.sl-theme-dark) .toolbar-group {
+    border-right-color: var(--sl-color-neutral-800);
+}
+
+.toolbar-group:last-child {
+    border-right: none;
+    padding-right: 0;
+}
+
 .spreadsheet-id-input {
-    width: 300px;
+    width: 180px;
+}
+
+/* Empty State Styles */
+.empty-state {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 50vh;
+    border: 2px dashed var(--sl-color-neutral-300);
+    border-radius: 1.5rem;
+    margin-top: 1rem;
+    transition: all 0.3s ease;
+    background: var(--sl-color-neutral-50);
+}
+
+:global(.sl-theme-dark) .empty-state {
+    border-color: var(--sl-color-neutral-700);
+    background: var(--sl-color-neutral-900);
+}
+
+.empty-state:hover {
+    border-color: var(--sl-color-primary-400);
+    background: var(--sl-color-primary-50);
+}
+
+:global(.sl-theme-dark) .empty-state:hover {
+    background: var(--sl-color-neutral-800);
+    border-color: var(--sl-color-primary-600);
+}
+
+.empty-state-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    text-align: center;
+    padding: 2rem;
+}
+
+.empty-state-icon {
+    font-size: 4rem;
+    color: var(--sl-color-neutral-300);
+    margin-bottom: 0.5rem;
+}
+
+.empty-state-title {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--sl-color-neutral-900);
+    margin: 0;
+}
+
+:global(.sl-theme-dark) .empty-state-title {
+    color: var(--sl-color-neutral-100);
+}
+
+.empty-state-sub {
+    font-size: 1.1rem;
+    color: var(--sl-color-neutral-500);
+    margin: 0;
+}
+
+:global(.sl-theme-dark) .empty-state-sub {
+    color: var(--sl-color-neutral-400);
+}
+
+.empty-state-actions {
+    margin-top: 1.5rem;
 }
 
 .v-enter-active,

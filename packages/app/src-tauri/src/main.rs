@@ -61,6 +61,7 @@ async fn main() {
             lib::prices::set_gem_prices_cache_ttl_minutes,
             lib::wealth::wealth_snapshot,
             lib::wealth::wealth_snapshot_cached,
+            lib::wealth::price_variance_cached,
             lib::wealth::list_snapshots,
             lib::wealth::count_snapshots,
             lib::wealth::clear_snapshot_cache,
