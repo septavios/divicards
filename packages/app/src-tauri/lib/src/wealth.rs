@@ -139,6 +139,7 @@ pub async fn wealth_snapshot(
         .await
         .unwrap_or_default();
     let oil_prices = prices::oil_prices(league.clone()).await.unwrap_or_default();
+    let essence_prices = prices::essence_prices(league.clone()).await.unwrap_or_default();
     let incubator_prices = prices::incubator_prices(league.clone())
         .await
         .unwrap_or_default();
@@ -190,6 +191,13 @@ pub async fn wealth_snapshot(
     for p in fossil_prices.into_iter() {
         if let Some(v) = p.chaos_value {
             fossils_map.insert(p.name, v);
+        }
+    }
+    let mut essences_map: HashMap<String, f32> = HashMap::new();
+    for p in essence_prices.into_iter() {
+        if let Some(v) = p.chaos_value {
+            let full = if let Some(variant) = p.variant { format!("{} {}", variant, p.name) } else { p.name };
+            essences_map.insert(full, v);
         }
     }
     let mut cards_map: HashMap<String, f32> = HashMap::new();
@@ -275,7 +283,10 @@ pub async fn wealth_snapshot(
                         .copied()
                         .or_else(|| maps_map.get(&(name.clone(), 0)).copied())
                 }
-                StashType::EssenceStash => fossils_map.get(&name).copied(),
+                StashType::EssenceStash => {
+                    let tl = item.type_line().unwrap_or("");
+                    essences_map.get(tl).copied().or_else(|| essences_map.get(&name).copied())
+                },
                 _ => oils_map
                     .get(&name)
                     .copied()
@@ -329,6 +340,9 @@ pub async fn wealth_snapshot(
         item_prices.insert(k.clone(), *v);
     }
     for (k, v) in fossils_map.iter() {
+        item_prices.insert(k.clone(), *v);
+    }
+    for (k, v) in essences_map.iter() {
         item_prices.insert(k.clone(), *v);
     }
     for (k, v) in cards_map.iter() {
@@ -391,6 +405,7 @@ pub async fn wealth_snapshot_cached(
         .await
         .unwrap_or_default();
     let oil_prices = prices::oil_prices(league.clone()).await.unwrap_or_default();
+    let essence_prices = prices::essence_prices(league.clone()).await.unwrap_or_default();
     let incubator_prices = prices::incubator_prices(league.clone())
         .await
         .unwrap_or_default();
@@ -442,6 +457,13 @@ pub async fn wealth_snapshot_cached(
     for p in fossil_prices.into_iter() {
         if let Some(v) = p.chaos_value {
             fossils_map.insert(p.name, v);
+        }
+    }
+    let mut essences_map: HashMap<String, f32> = HashMap::new();
+    for p in essence_prices.into_iter() {
+        if let Some(v) = p.chaos_value {
+            let full = if let Some(variant) = p.variant { format!("{} {}", variant, p.name) } else { p.name };
+            essences_map.insert(full, v);
         }
     }
     let mut cards_map: HashMap<String, f32> = HashMap::new();
@@ -508,7 +530,10 @@ pub async fn wealth_snapshot_cached(
                         .copied()
                         .or_else(|| maps_map.get(&(name.clone(), 0)).copied())
                 }
-                crate::poe::types::StashType::EssenceStash => fossils_map.get(&name).copied(),
+                crate::poe::types::StashType::EssenceStash => {
+                    let tl = item.type_line().unwrap_or("");
+                    essences_map.get(tl).copied().or_else(|| essences_map.get(&name).copied())
+                },
                 _ => oils_map
                     .get(&name)
                     .copied()
@@ -562,6 +587,9 @@ pub async fn wealth_snapshot_cached(
         item_prices.insert(k.clone(), *v);
     }
     for (k, v) in fossils_map.iter() {
+        item_prices.insert(k.clone(), *v);
+    }
+    for (k, v) in essences_map.iter() {
         item_prices.insert(k.clone(), *v);
     }
     for (k, v) in cards_map.iter() {
@@ -768,3 +796,4 @@ pub async fn delete_all_snapshots(league: Option<TradeLeague>) -> Result<i64, Er
 
     Ok(count as i64)
 }
+    

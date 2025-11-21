@@ -12,6 +12,7 @@ import { useAuthStore } from './stores/auth';
 import { useAutoAnimate } from './composables/useAutoAnimate';
 import '@shoelace-style/shoelace/dist/components/copy-button/copy-button.js';
 import '@shoelace-style/shoelace/dist/components/alert/alert.js';
+import '@shoelace-style/shoelace/dist/components/checkbox/checkbox.js';
 import { BasePopupElement } from '@divicards/wc/e-base-popup.js';
 import UpdateChangelog from './components/UpdateChangelog.vue';
 import NativeBrowserLink from './components/NativeBrowserLink.vue';
@@ -45,6 +46,7 @@ Promise.all([authStore.init(), googleAuthStore.init()]).catch(err => {
     console.warn('Failed to initialize auth stores:', err);
 });
 const stashVisible = ref(false);
+const showPrivateLeague = ref(false);
 const shouldShowImportActions = computed(() => !stashVisible.value || !authStore.loggedIn);
 const { releaseUrl, tag } = useAppVersion();
 const { update, installAndRelaunch } = useTauriUpdater();
@@ -190,9 +192,7 @@ const extractSelectedTab = async () => {
 
 function changeLeague(e: any) {
     const l = e.$league as League;
-    if (isTradeLeague(l)) {
-        league.value = l;
-    }
+    league.value = l;
 }
 
 async function export_sample({
@@ -329,7 +329,8 @@ const handleDropZoneDrop = (event: DragEvent) => {
 		</div>
         <header class="toolbar">
             <div class="toolbar__left">
-                <e-league-select with-private-league-input :league="league" @change:league="changeLeague"></e-league-select>
+                <e-league-select with-private-league-input :private-league-disabled="!showPrivateLeague" :league="league" @change:league="changeLeague"></e-league-select>
+                <sl-checkbox :checked="showPrivateLeague" @sl-change="(e: any) => showPrivateLeague = e.target.checked">Private League</sl-checkbox>
                 <sl-button variant="primary" @click="openStashWindow()"
                     >Load from Stash</sl-button
                 >
@@ -367,7 +368,6 @@ const handleDropZoneDrop = (event: DragEvent) => {
                     :loggedIn="googleAuthStore.loggedIn"
                 ></e-google-auth>
                 <e-poe-auth
-                    v-if="authStore.loggedIn"
                     @poe-auth__login="authStore.login"
                     @poe-auth__logout="authStore.logout"
                     :auth="{
@@ -420,6 +420,7 @@ const handleDropZoneDrop = (event: DragEvent) => {
             @stashes__extract-cards="handle_extract_cards"
             @change:selected_tabs="e => (selectedIds = Array.from(e.$selected_tabs.keys()))"
             @stashes__toast="handleToast"
+            @stashes__auth-error="authStore.logout"
         ></e-stashes-view>
 		<Transition>
 			<div>

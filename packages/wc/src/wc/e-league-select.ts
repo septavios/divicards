@@ -33,6 +33,7 @@ export class LeagueSelectElement extends LitElement {
 	@property({ type: String, reflect: true }) league: League = ACTIVE_LEAGUE;
 	@property() privateLeague: string = PrivateLeagueStorage.load() ?? '';
 	@property({ type: Boolean, reflect: true, attribute: 'with-private-league-input' }) withPrivateLeagueInput = false;
+	@property({ type: Boolean, reflect: true, attribute: 'private-league-disabled' }) privateLeagueDisabled = false;
 	@query('sl-select', true)
 	select!: HTMLSelectElement;
 
@@ -76,6 +77,7 @@ export class LeagueSelectElement extends LitElement {
 						type="text"
 						.label=${`Private league`}
 						size="small"
+						.disabled=${this.privateLeagueDisabled}
 				  ></sl-input>`
 				: nothing}
 		</div>`;

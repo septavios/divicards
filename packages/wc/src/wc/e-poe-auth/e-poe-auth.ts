@@ -35,7 +35,7 @@ export class PoeAuthElement extends LitElement {
 						<sl-button .size=${this.size} @click=${this.#emitLogout}>Logout</sl-button>
 				  </div>`
 				: html`<div>
-						<sl-button .size=${this.size} @click=${this.#emitLogin}>Login</sl-button>
+						<sl-button .size=${this.size} @click=${this.#emitLogin}>Connect to PoE</sl-button>
 				  </div>`}
 		</div>`;
 	}

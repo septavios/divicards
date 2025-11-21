@@ -35,6 +35,9 @@ impl Item {
     pub fn base_type(&self) -> Option<&str> {
         self.0["baseType"].as_str()
     }
+    pub fn type_line(&self) -> Option<&str> {
+        self.0["typeLine"].as_str()
+    }
     pub fn stack_size(&self) -> Option<u32> {
         self.0["stackSize"].as_u64().map(|v| v as u32)
     }

@@ -5,19 +5,20 @@ import { SelectedStashtabs } from './types.js';
 import { TabClickEvent } from './e-tab-badge/events.js';
 
 declare global {
-	interface HTMLElementEventMap extends EventMapFrom<Events> {}
+	interface HTMLElementEventMap extends EventMapFrom<Events> { }
 }
 
 export type Events = [
-    typeof CloseEvent,
-    typeof SampleFromStashtabEvent,
-    typeof StashtabFetchedEvent,
-    typeof ExtractCardsEvent,
-    typeof SelectedTabsChangeEvent,
-    typeof StashtabsBadgesFetchedEvent,
-    typeof TabClickEvent,
-    typeof BulkLoadAllTabsEvent,
-    typeof ForceReloadSelectedEvent
+	typeof CloseEvent,
+	typeof SampleFromStashtabEvent,
+	typeof StashtabFetchedEvent,
+	typeof ExtractCardsEvent,
+	typeof SelectedTabsChangeEvent,
+	typeof StashtabsBadgesFetchedEvent,
+	typeof TabClickEvent,
+	typeof BulkLoadAllTabsEvent,
+	typeof ForceReloadSelectedEvent,
+	typeof AuthErrorEvent
 ];
 
 export class CloseEvent extends Event {
@@ -74,17 +75,25 @@ export class SelectedTabsChangeEvent extends Event {
 }
 
 export class BulkLoadAllTabsEvent extends Event {
-    static readonly tag = 'stashes__bulk-load-all';
+	static readonly tag = 'stashes__bulk-load-all';
 
-    constructor(options?: EventInit) {
-        super(BulkLoadAllTabsEvent.tag, options);
-    }
+	constructor(options?: EventInit) {
+		super(BulkLoadAllTabsEvent.tag, options);
+	}
 }
 
 export class ForceReloadSelectedEvent extends Event {
-    static readonly tag = 'stashes__force-reload-selected';
+	static readonly tag = 'stashes__force-reload-selected';
 
-    constructor(options?: EventInit) {
-        super(ForceReloadSelectedEvent.tag, options);
-    }
+	constructor(options?: EventInit) {
+		super(ForceReloadSelectedEvent.tag, options);
+	}
+}
+
+export class AuthErrorEvent extends Event {
+	static readonly tag = 'stashes__auth-error';
+
+	constructor(options?: EventInit) {
+		super(AuthErrorEvent.tag, options);
+	}
 }

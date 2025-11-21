@@ -55,8 +55,14 @@ pub async fn tab_with_items(
     stash_id: String,
     substash_id: Option<String>,
     version: State<'_, AppVersion>,
-    ) -> Result<TabWithItems, Error> {
-    let tab = StashAPI::tab_with_items(&league, stash_id.clone(), substash_id.clone(), version.inner()).await?;
+) -> Result<TabWithItems, Error> {
+    let tab = StashAPI::tab_with_items(
+        &league,
+        stash_id.clone(),
+        substash_id.clone(),
+        version.inner(),
+    )
+    .await?;
     let item_count = tab.items().count();
     let map_count = tab
         .items()
@@ -130,15 +136,28 @@ impl StashAPI {
                 continue;
             }
             if let Some(limit_account_header) = headers.get("x-rate-limit-account") {
-                if let Some(limit_account_state_header) = headers.get("x-rate-limit-account-state") {
+                if let Some(limit_account_state_header) = headers.get("x-rate-limit-account-state")
+                {
                     println!(
                         "x-rate-limit-account: {limit_account_header:?}, x-rate-limit-account-state: {limit_account_state_header:?}"
                     );
                 };
             };
 
+            if !response.status().is_success() {
+                let status = response.status();
+                let text = response.text().await.unwrap_or_default();
+                return Err(Error::StashTabError {
+                    stash_id: stash_id.clone(),
+                    league: league.clone(),
+                    message: format!("API Error {}: {}", status, text),
+                });
+            }
+
             #[derive(Deserialize)]
-            struct ResponseShape { stash: TabWithItems }
+            struct ResponseShape {
+                stash: TabWithItems,
+            }
             let response_shape = response.json::<ResponseShape>().await?;
             // be nice to API: small gap between calls
             sleep(Duration::from_millis(1100)).await;
@@ -154,6 +173,15 @@ impl StashAPI {
                 let secs = s.to_str().unwrap().parse::<u64>().unwrap_or(1);
                 sleep(Duration::from_secs(secs + 1)).await;
                 continue;
+            }
+            if !response.status().is_success() {
+                let status = response.status();
+                let text = response.text().await.unwrap_or_default();
+                return Err(Error::StashTabError {
+                    stash_id: "all".to_string(),
+                    league: league.clone(),
+                    message: format!("API Error {}: {}", status, text),
+                });
             }
             let out = response.json().await?;
             sleep(Duration::from_millis(1100)).await;

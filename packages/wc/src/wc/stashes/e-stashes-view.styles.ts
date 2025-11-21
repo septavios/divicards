@@ -227,40 +227,65 @@ export const styles: CSSResult = css`
         display: flex;
         align-items: center;
         gap: 1.5rem;
-        background: var(--sl-color-neutral-0);
+        background: linear-gradient(135deg, var(--sl-color-neutral-0) 0%, var(--sl-color-neutral-50) 100%);
         border: 1px solid var(--sl-color-neutral-200);
         border-radius: 0.75rem;
-        padding: 0.75rem 1rem;
-        font-size: 0.9rem;
+        padding: 1rem 1.25rem;
+        font-size: 0.95rem;
         overflow-x: auto;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
     
     .movers-label {
-        font-weight: 600;
-        color: var(--sl-color-neutral-500);
-        font-size: 0.8rem;
+        font-weight: 700;
+        color: var(--sl-color-neutral-600);
+        font-size: 0.85rem;
         text-transform: uppercase;
-        letter-spacing: 0.05em;
-        padding-right: 1rem;
-        border-right: 1px solid var(--sl-color-neutral-200);
+        letter-spacing: 0.08em;
+        padding-right: 1.25rem;
+        border-right: 2px solid var(--sl-color-neutral-300);
         white-space: nowrap;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .movers-label::before {
+        content: "📊";
+        font-size: 1.1rem;
     }
     
     .mover-item {
         display: flex;
         align-items: center;
-        gap: 0.5rem;
+        gap: 0.6rem;
         white-space: nowrap;
+        padding: 0.4rem 0.75rem;
+        background: var(--sl-color-neutral-0);
+        border-radius: 0.5rem;
+        border: 1px solid var(--sl-color-neutral-200);
+        transition: all 0.2s ease;
+    }
+    
+    .mover-item:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+        border-color: var(--sl-color-primary-300);
     }
     
     .mover-name {
         color: var(--sl-color-neutral-700);
-        font-weight: 500;
+        font-weight: 600;
+        font-size: 0.9rem;
     }
     
     .mover-val {
-        font-weight: 600;
+        font-weight: 700;
         font-feature-settings: "tnum";
+        font-size: 0.95rem;
+        padding: 0.15rem 0.5rem;
+        border-radius: 0.375rem;
+        background: rgba(0,0,0,0.03);
     }
 
 	.trend-up { color: var(--sl-color-success-600); background: var(--sl-color-success-50); padding: 0.1rem 0.4rem; border-radius: 99px; display: inline-block; font-weight: 600; }
@@ -617,6 +642,10 @@ export const styles: CSSResult = css`
     .section-title sl-icon {
         color: var(--sl-color-primary-500);
     }
+    
+    .section-title sl-badge {
+        font-size: 0.7rem;
+    }
 
     .price-changes-empty {
         display: flex;
@@ -626,6 +655,28 @@ export const styles: CSSResult = css`
         padding: 2rem;
         color: var(--sl-color-neutral-500);
         gap: 0.5rem;
+    }
+    
+    .price-changes-preview {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.75rem;
+        padding: 1.5rem;
+        background: var(--sl-color-neutral-50);
+        border-radius: 0.5rem;
+        border: 1px dashed var(--sl-color-neutral-300);
+        color: var(--sl-color-neutral-600);
+        font-size: 0.9rem;
+    }
+    
+    .price-changes-preview sl-icon {
+        font-size: 1.5rem;
+        color: var(--sl-color-primary-500);
+    }
+    
+    .price-changes-preview p {
+        margin: 0;
     }
 
     .price-stats {

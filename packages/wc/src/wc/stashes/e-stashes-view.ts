@@ -20,6 +20,7 @@ import { isStashTabError } from '@divicards/shared/error.js';
 import type { ErrorLabel, SelectedStashtabs } from './types.js';
 import { styles } from './e-stashes-view.styles.js';
 import './e-stash-tab-container/e-stash-tab-container.js';
+import './e-settings-panel.js';
 import { Task } from '@lit/task';
 import { ExtractCardsEvent as ContainerExtractCardsEvent } from './e-stash-tab-container/events.js';
 import { NoItemsTab, TabWithItems } from 'poe-custom-elements/types.js';
@@ -30,6 +31,7 @@ import {
 	SelectedTabsChangeEvent,
 	StashtabFetchedEvent,
 	StashtabsBadgesFetchedEvent,
+	AuthErrorEvent,
 	CloseEvent,
 	Events,
 } from './events.js';
@@ -63,6 +65,8 @@ export class StashesViewElement extends LitElement {
 	@property({ reflect: true }) league: League = ACTIVE_LEAGUE;
 	@property() downloadAs: DownloadAs = 'divination-cards-sample';
 	@property({ type: Boolean }) multiselect = false;
+	@property({ type: Number }) bulkConcurrency: number = 2;
+	@property({ type: Number }) bulkBatchDelayMs: number = 2000;
 
 	@state() selected_tabs: SelectedStashtabs = new Map();
 	/** PoE /stashes data about all stashtabs in stash (does not include items) */
@@ -85,13 +89,16 @@ export class StashesViewElement extends LitElement {
 	@state() showWealth = false;
 	@state() hoveredSnapshot: { x: number; y: number; snapshot: any; index: number; align: 'center' | 'left' | 'right' } | null = null;
 	@state() snapshotsLoading = false;
-	@state() bulkProgress: { loaded: number; total: number; name: string } | null = null;
+	@state() bulkProgress: { started: number; loaded: number; total: number; name: string } | null = null;
 	@state() chartMode: 'chaos' | 'divine' = 'chaos';
 	@state() chartRange: 'all' | 'recent' = 'all';
 	@state() showPriceChanges = false;
 	@state() priceChangeMode: 'item' | 'category' = 'category';
+	@state() loadingPriceChanges = false;
 	@state() priceChangesData: Array<any> = [];
 	private lastToastTime = 0;
+	@state() private aggregatedMemoKey: string = '';
+	@state() private aggregatedTabMemo: TabWithItems | null = null;
 
 	private stashTabTask = new Task(this, {
 		task: async ([tab, selectedTabs]: [NoItemsTab | null, SelectedStashtabs]) => {
@@ -189,46 +196,22 @@ export class StashesViewElement extends LitElement {
 			data: tab,
 			timestamp: Date.now()
 		});
+		if (this.multiselect && this.selected_tabs.has(id)) {
+			this.#updateAggregatedMemo();
+		}
 		this.requestUpdate();
 	}
 
 	#renderAggregatedView(): TemplateResult | typeof nothing {
 		if (!this.multiselect || this.selected_tabs.size === 0) return nothing;
 
-		const selectedIds = Array.from(this.selected_tabs.keys());
-		const items: TabWithItems['items'] = [];
-
-		// Collect items from cache
-		for (const id of selectedIds) {
-			const cached = this.#getCachedTab(id);
-			if (cached && cached.items) {
-				cached.items.forEach(it => {
-					const withTab = { ...(it as any), tabIndex: cached.index } as any;
-					items.push(withTab);
-				});
-			}
-		}
-
-		// Don't show aggregated table if we have no items yet
-		if (items.length === 0) {
+		this.#updateAggregatedMemo();
+		if (!this.aggregatedTabMemo) {
 			return html`<e-stash-tab-container
 				status="pending"
 				@e-stash-tab-container__close=${this.#handleTabContainerClose}
 			></e-stash-tab-container>`;
 		}
-
-		// Create a synthetic tab for aggregation
-		const aggregatedTab: TabWithItems = {
-			id: 'aggregated-view',
-			name: `Aggregated (${selectedIds.length} tabs)`,
-			type: 'QuadStash',
-			index: 0,
-			items: items,
-			metadata: {
-				colour: 'ffffff'
-			}
-		};
-
 		return html`<e-stash-tab-container
 			.cardsJustExtracted=${this.cardsJustExtracted}
 			@e-stash-tab-container__close=${this.#handleTabContainerClose}
@@ -236,8 +219,57 @@ export class StashesViewElement extends LitElement {
 			status="complete"
 			.league=${this.league}
 			.stashLoader=${this.stashLoader}
-			.tab=${aggregatedTab}
+			.tab=${this.aggregatedTabMemo}
 		></e-stash-tab-container>`;
+	}
+
+	#computeAggregatedMemoKey(ids: string[]): string {
+		const ts = ids.map(id => this.tabsCache.get(id)?.timestamp ?? 0);
+		return `${ids.join(',')}|${ts.join(',')}`;
+	}
+
+	#updateAggregatedMemo(): void {
+		if (!this.multiselect || this.selected_tabs.size === 0) {
+			this.aggregatedMemoKey = '';
+			this.aggregatedTabMemo = null;
+			return;
+		}
+		const ids = Array.from(this.selected_tabs.keys());
+		const key = this.#computeAggregatedMemoKey(ids);
+		if (key === this.aggregatedMemoKey) return;
+
+		const items: TabWithItems['items'] = [];
+		let hasAnyData = false;
+
+		for (const id of ids) {
+			const cached = this.#getCachedTab(id);
+			if (cached && cached.items) {
+				hasAnyData = true;
+				cached.items.forEach(it => {
+					const withTab = { ...(it as any), tabIndex: cached.index } as any;
+					items.push(withTab);
+				});
+			}
+		}
+
+		this.aggregatedMemoKey = key;
+
+		// Only update if we have data OR if this is the first time (no previous memo)
+		// This prevents clearing the view while tabs are still loading
+		if (items.length > 0) {
+			this.aggregatedTabMemo = {
+				id: 'aggregated-view',
+				name: `Aggregated (${ids.length} tabs)`,
+				type: 'QuadStash',
+				index: 0,
+				items,
+				metadata: { colour: 'ffffff' }
+			};
+		} else if (!hasAnyData && !this.fetchingStashTab) {
+			// Only clear if we have no data AND we're not currently loading
+			this.aggregatedTabMemo = null;
+		}
+		// Otherwise keep the previous aggregatedTabMemo to avoid flashing spinner
 	}
 
 	constructor() {
@@ -257,6 +289,21 @@ export class StashesViewElement extends LitElement {
 			e.stopPropagation();
 			this.#onLoadItemsClicked();
 		});
+	}
+
+	#onWindowResizeBound?: () => void;
+
+	connectedCallback(): void {
+		super.connectedCallback();
+		this.#onWindowResizeBound = () => {
+			this.#renderHistoryCharts();
+		};
+		window.addEventListener('resize', this.#onWindowResizeBound);
+	}
+
+	disconnectedCallback(): void {
+		window.removeEventListener('resize', this.#onWindowResizeBound as any);
+		super.disconnectedCallback();
 	}
 
 	@query('button#stashes-btn') stashesButton!: HTMLButtonElement;
@@ -286,25 +333,24 @@ export class StashesViewElement extends LitElement {
 		return html`<div class="main-stashes-component">
 			<header class="header">
                 <div class="header-left">
-                    <div>
-                        ${(!this.bulkProgress && (this.fetchingStashTab || this.fetchingStash)) ? html`<sl-spinner></sl-spinner>` : nothing}
-                    </div>
-                </div>
-                
-                <div class="header-right">
                     ${this.bulkProgress ? html`
                         <div class="bulk-progress-inline">
                             <div class="bulk-row">
                                 <sl-spinner></sl-spinner>
                                 <span class="bulk-text">
-                                    ${this.msg ? this.msg : `Loading ${this.bulkProgress.name} (${this.bulkProgress.loaded}/${this.bulkProgress.total})...`}
+                                    ${this.msg ? this.msg : `Loading tab ${this.bulkProgress.started} of ${this.bulkProgress.total}: ${this.bulkProgress.name}`}
                                 </span>
                             </div>
                             <div class="bulk-bar">
                                 <div class="bulk-fill" style="width: ${Math.max(0, Math.min(100, Math.round((this.bulkProgress.loaded / Math.max(1, this.bulkProgress.total)) * 100)))}%"></div>
                             </div>
                         </div>
-                    ` : nothing}
+                    ` : html`<div>
+                        ${(this.fetchingStashTab || this.fetchingStash) ? html`<sl-spinner></sl-spinner>` : nothing}
+                    </div>`}
+                </div>
+                
+                <div class="header-right">
                     <div class="snapshot-controls">
                          <div class="loads-available">
                             Loads: <span class="loads-available__value">${this.stashLoadsAvailable}</span>
@@ -342,6 +388,12 @@ export class StashesViewElement extends LitElement {
                         </sl-button-group>
                     </div>
 
+                    <e-settings-panel
+                        .concurrency=${this.bulkConcurrency}
+                        .delayMs=${this.bulkBatchDelayMs}
+                        @upd:bulk_settings=${this.#onBulkSettingsUpdate}
+                    ></e-settings-panel>
+
                     ${this.stashtabs_badges.length && this.multiselect && this.opened_tab && (this.opened_tab.type === 'DivinationCardStash')
 				? html`<sl-radio-group
                                 @sl-change=${this.#onDownloadAsChanged}
@@ -366,12 +418,12 @@ export class StashesViewElement extends LitElement {
                 <p class="msg">${this.msg}</p>
                 <p class="msg">${this.noStashesMessage}</p>
                 ${this.errors.length
-                ? html`<e-stash-tab-errors
+				? html`<e-stash-tab-errors
                             @upd:hoveredErrorTabId=${this.#handleUpdHoveredError}
                             @upd:errors=${this.#handleUpdErrors}
                             .errors=${this.errors}
                       ></e-stash-tab-errors>`
-                : nothing}
+				: nothing}
             </div>
 			${(this.snapshotsLoading || (this.showWealth && this.snapshots.length))
 				? (this.snapshots.length ? this.#renderWealthDashboard() : this.#renderWealthSkeleton())
@@ -463,6 +515,12 @@ export class StashesViewElement extends LitElement {
 		this.downloadAs = (e.target as HTMLInputElement).value as DownloadAs;
 	}
 
+	#onBulkSettingsUpdate(e: CustomEvent<{ bulkConcurrency: number; bulkBatchDelayMs: number }>) {
+		const { bulkConcurrency, bulkBatchDelayMs } = e.detail;
+		this.bulkConcurrency = Math.max(1, Number(bulkConcurrency || 1));
+		this.bulkBatchDelayMs = Math.max(0, Number(bulkBatchDelayMs || 0));
+	}
+
 	#toggleWealth() {
 		this.showWealth = !this.showWealth;
 	}
@@ -515,6 +573,7 @@ export class StashesViewElement extends LitElement {
 				});
 			}
 		}
+		this.#updateAggregatedMemo();
 	}
 	#handle_tab_badge_click(e: TabClickEvent): void {
 		const clicked = e.$tab;
@@ -557,6 +616,12 @@ export class StashesViewElement extends LitElement {
 				this.noStashesMessage = err.message;
 			} else if (typeof err === 'string') {
 				this.noStashesMessage = err;
+			} else if (typeof err === 'object' && err !== null && 'message' in err) {
+				const msg = (err as any).message;
+				this.noStashesMessage = msg;
+				if (typeof msg === 'string' && (msg.includes('401') || msg.includes('invalid_token'))) {
+					this.dispatchEvent(new AuthErrorEvent());
+				}
 			} else {
 				throw err;
 			}
@@ -569,19 +634,20 @@ export class StashesViewElement extends LitElement {
 	async #load_selected_tabs(league: League, force = false): Promise<void> {
 		const tabsToLoad = Array.from(this.selected_tabs.values());
 		let loadedCount = 0;
+		let startedCount = 0;
 		const totalToLoad = tabsToLoad.length;
 
 		this.fetchingStashTab = true;
-		const CONCURRENCY = 2; // Load 2 tabs at a time
+		const CONCURRENCY = Math.max(1, Number(this.bulkConcurrency || 2));
 
 		try {
-			// Process tabs in batches for parallel loading
 			for (let i = 0; i < tabsToLoad.length; i += CONCURRENCY) {
 				const batch = tabsToLoad.slice(i, i + CONCURRENCY);
-
-				// Load batch in parallel using Promise.allSettled
+				const pendingErrors: Array<ErrorLabel> = [];
 				await Promise.allSettled(
 					batch.map(async ({ id, name: stashtab_name }) => {
+						startedCount++;
+						this.bulkProgress = { started: startedCount, loaded: loadedCount, total: totalToLoad, name: stashtab_name };
 						try {
 							switch (this.downloadAs) {
 								case 'divination-cards-sample': {
@@ -598,35 +664,30 @@ export class StashesViewElement extends LitElement {
 									break;
 								}
 							}
-
-							// Update progress after each tab loads
 							loadedCount++;
-							this.bulkProgress = { loaded: loadedCount, total: totalToLoad, name: stashtab_name };
+							this.bulkProgress = { started: startedCount, loaded: loadedCount, total: totalToLoad, name: stashtab_name };
+							// Update aggregated view incrementally as tabs load
+							this.#updateAggregatedMemo();
 						} catch (err) {
 							if (!isStashTabError(err)) {
 								throw err;
 							}
 							const stashtab_badge = this.stashtabs_badges.find(stash => stash.id === id);
 							if (stashtab_badge) {
-								this.errors = [
-									...this.errors,
-									{
-										noItemsTab: stashtab_badge,
-										message: err.message,
-									},
-								];
+								pendingErrors.push({ noItemsTab: stashtab_badge, message: (err as any).message });
 							}
 						}
 					})
 				);
-				// Sleep 2s between batches to avoid rate limits
-				await sleepSecs(2);
+				if (pendingErrors.length) {
+					this.errors = [...this.errors, ...pendingErrors];
+				}
+				await sleepMs(Math.max(0, Number(this.bulkBatchDelayMs || 2000)));
 			}
 		} finally {
 			this.fetchingStashTab = false;
 			this.msg = '';
 			this.bulkProgress = null;
-
 		}
 	}
 
@@ -932,6 +993,7 @@ export class StashesViewElement extends LitElement {
                     </div>
                 </div>
 
+
                 ${this.#renderTopMoversStrip(latest, prev)}
 
                 <!-- Price Changes Section -->
@@ -940,17 +1002,23 @@ export class StashesViewElement extends LitElement {
                         <span class="section-title">
                             <sl-icon name="graph-up"></sl-icon>
                             Price Variance Analysis
+                            <sl-badge variant="neutral" pill>${this.priceChangesData.length} items</sl-badge>
                         </span>
                         <sl-button 
                             size="small" 
                             @click=${this.#togglePriceChanges}
                             variant=${this.showPriceChanges ? 'primary' : 'default'}
                         >
-                            <sl-icon name="currency-exchange" slot="prefix"></sl-icon>
-                            ${this.showPriceChanges ? 'Hide' : 'Compare Prices'}
+                            <sl-icon name="${this.showPriceChanges ? 'eye-slash' : 'eye'}" slot="prefix"></sl-icon>
+                            ${this.showPriceChanges ? 'Hide Analysis' : 'Show Analysis'}
                         </sl-button>
                     </div>
-                    ${this.showPriceChanges ? this.#renderPriceChanges() : nothing}
+                    ${this.showPriceChanges ? this.#renderPriceChanges() : html`
+                        <div class="price-changes-preview">
+                            <sl-icon name="info-circle"></sl-icon>
+                            <p>Click "Show Analysis" to compare current live prices with your last snapshot</p>
+                        </div>
+                    `}
                 </div>
 
                 <div class="charts">
@@ -1060,6 +1128,9 @@ export class StashesViewElement extends LitElement {
 			return;
 		}
 
+		this.loadingPriceChanges = true;
+		this.priceChangesData = [];
+
 		try {
 			// If no tabs selected, fallback to snapshot-only category breakdown
 			if (this.selected_tabs.size === 0) {
@@ -1122,10 +1193,11 @@ export class StashesViewElement extends LitElement {
 				if (name && price > 0) currentGemPrices.set(gemKey(name, level, quality, corrupt), price);
 			});
 
-			const latest = this.snapshots[0];
+			// Use previous snapshot if available, otherwise latest (which will show 0 variance vs live usually)
+			const baselineSnapshot = this.snapshots.length > 1 ? this.snapshots[1] : this.snapshots[0];
 
 			// Check if snapshot has item prices
-			if (latest.item_prices) {
+			if (baselineSnapshot.item_prices) {
 				this.priceChangeMode = 'item';
 
 				// Get items from cached tabs
@@ -1171,15 +1243,15 @@ export class StashesViewElement extends LitElement {
 						const gc = !!itemData.gc;
 						if (gl === 20 && gq === 20) {
 							currentPrice = currentGemPrices.get(gemKey(name, 20, 20, gc)) || currentGemPrices.get(gemKey(name, 20, 20, false)) || 0;
-							snapshotPrice = latest.item_prices?.[gemKey(name, 20, 20, gc)] || latest.item_prices?.[gemKey(name, 20, 20, false)] || latest.item_prices?.[name] || 0;
+							snapshotPrice = baselineSnapshot.item_prices?.[gemKey(name, 20, 20, gc)] || baselineSnapshot.item_prices?.[gemKey(name, 20, 20, false)] || baselineSnapshot.item_prices?.[name] || 0;
 						} else {
 							currentPrice = currentGemPrices.get(gemKey(name, 1, 0, false)) || currentGemPrices.get(gemKey(name, gl, gq, false)) || currentPrices.get(name)?.price || 0;
-							snapshotPrice = latest.item_prices?.[gemKey(name, 1, 0, false)] || latest.item_prices?.[gemKey(name, gl, gq, false)] || latest.item_prices?.[name] || 0;
+							snapshotPrice = baselineSnapshot.item_prices?.[gemKey(name, 1, 0, false)] || baselineSnapshot.item_prices?.[gemKey(name, gl, gq, false)] || baselineSnapshot.item_prices?.[name] || 0;
 						}
 					} else {
 						const currentInfo = currentPrices.get(itemData.name);
 						currentPrice = currentInfo?.price || 0;
-						snapshotPrice = latest.item_prices?.[itemData.name] || 0;
+						snapshotPrice = baselineSnapshot.item_prices?.[itemData.name] || 0;
 					}
 
 					if (currentPrice === 0 && snapshotPrice === 0) return;
@@ -1241,7 +1313,7 @@ export class StashesViewElement extends LitElement {
 					}
 				}
 
-				const snapshotCats = latest.by_category || {};
+				const snapshotCats = baselineSnapshot.by_category || {};
 				const changes: Array<any> = [];
 				const allCats = new Set([...currentCategories.keys(), ...Object.keys(snapshotCats)]);
 
@@ -1271,11 +1343,13 @@ export class StashesViewElement extends LitElement {
 		} catch (err) {
 			console.error('Failed to calculate price changes:', err);
 			this.priceChangesData = [];
+		} finally {
+			this.loadingPriceChanges = false;
 		}
 	}
 
 	#renderPriceChanges() {
-		if (this.priceChangesData.length === 0) {
+		if (this.loadingPriceChanges) {
 			return html`
 				<div class="price-changes-empty">
 					<sl-icon name="info-circle"></sl-icon>
@@ -1284,9 +1358,18 @@ export class StashesViewElement extends LitElement {
 			`;
 		}
 
+		if (this.priceChangesData.length === 0) {
+			return html`
+				<div class="price-changes-empty">
+					<sl-icon name="info-circle"></sl-icon>
+					<p>No significant price changes found.</p>
+				</div>
+			`;
+		}
+
 		if (this.priceChangeMode === 'item') {
-			const topGainers = this.priceChangesData.filter(i => i.totalChange > 0).slice(0, 10);
-			const topLosers = this.priceChangesData.filter(i => i.totalChange < 0).slice(0, 10);
+			const topGainers = this.priceChangesData.filter(i => i.totalChange > 0);
+			const topLosers = this.priceChangesData.filter(i => i.totalChange < 0);
 			const totalVariance = this.priceChangesData.reduce((acc, item) => acc + item.totalChange, 0);
 
 			return html`
@@ -1802,12 +1885,27 @@ export class StashesViewElement extends LitElement {
 		canvas.style.width = `${w}px`;
 		canvas.style.height = `${h}px`;
 
+		if (w <= 0) {
+			requestAnimationFrame(() => this.#renderHistoryCharts());
+			return;
+		}
+
 		const ctx = canvas.getContext('2d');
-		if (!ctx) return;
+		if (!ctx) {
+			console.warn('Category Breakdown: 2D context unavailable');
+			return;
+		}
 		ctx.scale(dpr, dpr);
 		ctx.clearRect(0, 0, w, h);
 
-		if (entries.length === 0) return;
+		if (entries.length === 0) {
+			ctx.fillStyle = getComputedStyle(this).getPropertyValue('--sl-color-neutral-600') || '#64748b';
+			ctx.font = '600 13px system-ui';
+			ctx.textAlign = 'center';
+			ctx.textBaseline = 'middle';
+			ctx.fillText('No category data', w / 2, h / 2);
+			return;
+		}
 
 		const max = Math.max(1, ...entries.map(e => e.value));
 		const rowH = Math.min(40, h / entries.length);
@@ -1901,52 +1999,55 @@ export class StashesViewElement extends LitElement {
 }
 
 function isGem(item: any): boolean {
-  const ft = (item as any).frameType;
-  const props = (item as any).properties || [];
-  const hasGemProp = Array.isArray(props) && props.some((p: any) => p?.name === 'Gem Level' || p?.name === 'Level');
-  return ft === 4 || hasGemProp;
+	const ft = (item as any).frameType;
+	const props = (item as any).properties || [];
+	const hasGemProp = Array.isArray(props) && props.some((p: any) => p?.name === 'Gem Level' || p?.name === 'Level');
+	return ft === 4 || hasGemProp;
 }
 
 function getGemLevel(item: any): number {
-  const p = item.properties || [];
-  for (const prop of p) {
-    if ((prop as any).name === 'Gem Level' || (prop as any).name === 'Level') {
-      const val = Array.isArray((prop as any).values) && (prop as any).values?.[0]?.[0];
-      if (val !== undefined && val !== null) {
-        const v = String(val);
-        const m = v.match(/(\d+)/);
-        if (m) return parseInt(m[1], 10);
-      }
-    }
-  }
-  return 0;
+	const p = item.properties || [];
+	for (const prop of p) {
+		if ((prop as any).name === 'Gem Level' || (prop as any).name === 'Level') {
+			const val = Array.isArray((prop as any).values) && (prop as any).values?.[0]?.[0];
+			if (val !== undefined && val !== null) {
+				const v = String(val);
+				const m = v.match(/(\d+)/);
+				if (m) return parseInt(m[1], 10);
+			}
+		}
+	}
+	return 0;
 }
 
 function getGemQuality(item: any): number {
-  const p = item.properties || [];
-  for (const prop of p) {
-    if ((prop as any).name === 'Quality') {
-      const val = Array.isArray((prop as any).values) && (prop as any).values?.[0]?.[0];
-      if (val !== undefined && val !== null) {
-        const v = String(val);
-        const m = v.match(/(\d+)/);
-        if (m) return parseInt(m[1], 10);
-      }
-    }
-  }
-  return 0;
+	const p = item.properties || [];
+	for (const prop of p) {
+		if ((prop as any).name === 'Quality') {
+			const val = Array.isArray((prop as any).values) && (prop as any).values?.[0]?.[0];
+			if (val !== undefined && val !== null) {
+				const v = String(val);
+				const m = v.match(/(\d+)/);
+				if (m) return parseInt(m[1], 10);
+			}
+		}
+	}
+	return 0;
 }
 
 function isCorrupted(item: any): boolean {
-  return Boolean((item as any).corrupted);
+	return Boolean((item as any).corrupted);
 }
 
 function gemKey(name: string, level: number, quality: number, corrupt: boolean): string {
-  return `${name}__${level}__${quality}__${corrupt ? 'c' : 'u'}`;
+	return `${name}__${level}__${quality}__${corrupt ? 'c' : 'u'}`;
 }
 
 const sleepSecs = async (secs: number): Promise<void> => {
 	return new Promise(r => setTimeout(r, secs * 1000));
+};
+const sleepMs = async (ms: number): Promise<void> => {
+	return new Promise(r => setTimeout(r, ms));
 };
 
 declare global {
