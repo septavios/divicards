@@ -50,7 +50,7 @@ export class PoeEssenceStashListElement extends LitElement {
           if (typeof r.chaos_value === 'number') next.set(key, r.chaos_value);
         });
         this.prices = next;
-      } catch {}
+      } catch { }
     }
   }
 
@@ -113,14 +113,39 @@ export class PoeEssenceStashListElement extends LitElement {
 
   static styles: CSSResult = css`
     :host { display: block; width: var(--size, 569px); height: var(--size, 569px); }
-    .list { width: 100%; height: 100%; padding: 8px; display: grid; grid-auto-rows: min-content; row-gap: 6px; overflow: auto; }
+    .list {
+      width: 100%; height: 100%; padding: 8px; display: grid; grid-auto-rows: min-content; row-gap: 6px; overflow: auto;
+      --table-bg: var(--sl-color-neutral-50);
+      --table-header-bg: var(--sl-color-neutral-100);
+      --table-row-bg: var(--sl-color-neutral-50);
+      --table-row-hover-bg: var(--sl-color-neutral-100);
+      --table-text-color: var(--sl-color-neutral-900);
+      --table-border-color: var(--sl-color-neutral-200);
+      --header-text-color: var(--sl-color-neutral-700);
+      background: var(--table-bg);
+      color: var(--table-text-color);
+    }
+    :host-context(.sl-theme-dark) .list {
+      --table-bg: #121212;
+      --table-header-bg: #161616;
+      --table-row-bg: #151515;
+      --table-row-hover-bg: #1e1e20;
+      --table-text-color: var(--sl-color-neutral-100);
+      --table-border-color: var(--sl-color-neutral-800);
+      --header-text-color: var(--sl-color-neutral-300);
+      background: var(--table-bg);
+      color: var(--table-text-color);
+    }
     .header, .row { display: grid; grid-template-columns: 1fr 80px 50px 80px 80px 100px; align-items: center; column-gap: 12px; }
-    .header { font-weight: 600; position: sticky; top: 0; background: var(--sl-color-gray-50); z-index: 1; padding: 6px 0; border-bottom: 1px solid var(--sl-color-gray-200); }
-    .header .th { text-align: left; background: transparent; border: none; color: inherit; cursor: pointer; padding: 4px 0; }
+    .header { font-weight: 600; background: var(--table-header-bg); padding: 6px 0; border-bottom: 1px solid var(--table-border-color); }
+    .header .th { text-align: left; background: transparent; border: none; color: var(--header-text-color); cursor: pointer; padding: 4px 6px; border-radius: 4px; }
+    .header .th:hover { background: var(--table-row-hover-bg); color: var(--sl-color-primary-600); }
+    .header .th:focus-visible { outline: 2px solid var(--sl-color-primary-600); outline-offset: 2px; }
     .name { display: flex; align-items: center; gap: 8px; }
     poe-item { --cell-size: 32px; --poe-item-size: 32px; --stack-size-font-size: 10px; }
     .quality, .qty { text-align: right; }
-    .row { border-bottom: 1px solid var(--sl-color-gray-200); padding: 6px 0; }
+    .row { background: var(--table-row-bg); color: var(--table-text-color); border-bottom: 1px solid var(--table-border-color); padding: 6px 8px; border-radius: 4px; }
+    .row:hover { background: var(--table-row-hover-bg); }
   `;
 }
 

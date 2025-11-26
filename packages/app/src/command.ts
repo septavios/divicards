@@ -21,6 +21,7 @@ type Preferences = Omit<TablePreferences, 'columns'> & { columns: Column[] };
 export interface Commands {
     version: () => string;
     poe_has_token: () => boolean;
+    biometric_authenticate: () => void;
     read_batch(args: { spreadsheetId: string; ranges: string[] }): unknown;
     read_sheet(args: { spreadsheetId: string; range: string }): ValueRange;
     new_sheet_with_sample: (args: {
@@ -58,8 +59,9 @@ export interface Commands {
     vial_prices: (args: { league: League }) => Array<{ name: string; chaos_value: number | null }>;
     divination_card_prices: (args: { league: League }) => Array<{ name: string; chaos_value: number | null }>;
     ninja_dense_overviews_raw: (args: { league: League }) => Record<string, unknown>;
+    price_sources_matrix: (args: { league: League; include_low_confidence?: boolean }) => Array<{ category: string; name: string; variant?: string | null; tier?: number | null; dense?: number | null; currency_overview?: number | null; item_overview?: number | null; poewatch?: number | null }>;
     set_gem_prices_cache_ttl_minutes: (args: { minutes: number }) => void;
-    price_variance_cached: (args: { league: League; tabs: Array<TabWithItems>; baseline_item_prices?: Record<string, number>; baseline_by_category?: Record<string, { chaos: number }> }) => { mode: 'item' | 'category'; changes: any[]; totalVariance?: number };
+    price_variance_cached: (args: { league: League; tabs: Array<TabWithItems>; baseline_item_prices?: Record<string, number>; baseline_by_category?: Record<string, { chaos: number }>; baseline_inventory?: Record<string, number> }) => { mode: 'item' | 'category' | 'inventory'; changes: any[]; totalVariance?: number };
     wealth_snapshot: (args: { league: League; tabs: Array<{ stash_id: string; substash_id?: string | null }> }) => {
         timestamp: number;
         league: string;

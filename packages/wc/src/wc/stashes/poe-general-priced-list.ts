@@ -16,7 +16,7 @@ import '@shoelace-style/shoelace/dist/components/button/button.js';
 import '@shoelace-style/shoelace/dist/components/icon-button/icon-button.js';
 import '@shoelace-style/shoelace/dist/components/switch/switch.js';
 import '../shared/e-json-viewer';
-import '@lit-labs/virtualizer';
+import '../shared/e-json-viewer';
 
 @customElement('poe-general-priced-list')
 export class PoeGeneralPricedListElement extends LitElement {
@@ -320,6 +320,12 @@ export class PoeGeneralPricedListElement extends LitElement {
       // We also need to rebuild derived indices that depend on the raw data
       this.buildCategoryIndex({ ...this.debugData } as any);
       this.rebuildDerivedIndices(this.debugData);
+      return;
+    }
+
+    if (!this.stashLoader) {
+      // If no loader is present (e.g. in Storybook or before injection),
+      // we can't load prices. Just return to avoid error loops.
       return;
     }
 
@@ -638,12 +644,9 @@ export class PoeGeneralPricedListElement extends LitElement {
           Invalid regex: ${this.filterPending}
         </sl-alert>` : null}
         ${this.renderHeader(filteredCols)}
-        <lit-virtualizer
-          .items=${sliced}
-          .renderItem=${(r: any) => html`<div class="row ${this.aggregate ? 'agg' : ''} ${this.ultraCompactMode ? 'ultra' : ''}" data-category="${r.category}" style="grid-template-columns: ${filteredCols.map(c => (this.aggregate ? this.columnWidthsAgg[c] : this.columnWidths[c]) || '1fr').join(' ')}">
+        ${sliced.map((r: any) => html`<div class="row ${this.aggregate ? 'agg' : ''} ${this.ultraCompactMode ? 'ultra' : ''}" data-category="${r.category}" style="grid-template-columns: ${filteredCols.map(c => (this.aggregate ? this.columnWidthsAgg[c] : this.columnWidths[c]) || '1fr').join(' ')}">
             ${filteredCols.map(c => this.renderCell(r, c))}
-          </div>`}
-        ></lit-virtualizer>
+          </div>`)}
       </div>
     </div>
     <sl-dialog label="Prices JSON" .open=${this.viewPricesOpen} @sl-hide=${() => { this.viewPricesOpen = false; }} style="--width: 800px;">
@@ -787,7 +790,35 @@ export class PoeGeneralPricedListElement extends LitElement {
 
   static styles: CSSResult = css`
     :host { display: block; width: 100%; height: auto; }
-    .list { width: 100%; padding: 6px; display: grid; grid-auto-rows: min-content; row-gap: 4px; overflow-y: auto; overflow-x: hidden; }
+    .list { 
+      width: 100%; 
+      padding: 6px; 
+      display: grid; 
+      grid-auto-rows: min-content; 
+      row-gap: 4px; 
+      overflow-y: auto; 
+      overflow-x: hidden; 
+      --table-bg: var(--sl-color-neutral-50);
+      --table-header-bg: var(--sl-color-neutral-100);
+      --table-row-bg: var(--sl-color-neutral-50);
+      --table-row-hover-bg: var(--sl-color-neutral-100);
+      --table-text-color: var(--sl-color-neutral-900);
+      --table-border-color: var(--sl-color-neutral-200);
+      background: var(--table-bg);
+      color: var(--table-text-color);
+    }
+    :host-context(.sl-theme-dark) .list { 
+      --table-bg: #101214; 
+      --table-header-bg: #14171a; 
+      --table-row-bg: #15181b; 
+      --table-row-alt-bg: #1a1d21;
+      --table-row-hover-bg: #1f2328; 
+      --table-text-color: var(--sl-color-neutral-100);
+      --table-border-color: var(--sl-color-neutral-700);
+      --header-text-color: var(--sl-color-neutral-200);
+      background: var(--table-bg);
+      color: var(--table-text-color);
+    }
     .list.ultra { row-gap: 2px; }
     .toolbar { display: grid; grid-template-columns: 1fr; gap: 6px; }
     .toolbar-primary, .toolbar-secondary { display: flex; align-items: center; justify-content: space-between; gap: 6px; flex-wrap: wrap; }
@@ -799,29 +830,29 @@ export class PoeGeneralPricedListElement extends LitElement {
     .filtered-total { font-weight: 600; opacity: 0.8; white-space: nowrap; }
     .pager { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
     .pager__info { min-width: 100px; text-align: center; }
-    sl-alert { position: sticky; top: 0; z-index: 1; }
-    .columns-panel { position: sticky; top: 0; z-index: 20; background: var(--sl-color-neutral-0); border: 1px solid var(--sl-color-neutral-200); border-radius: 0.5rem; padding: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.08); }
+    sl-alert { }
+    .columns-panel { background: var(--table-bg); border: 1px solid var(--table-border-color); border-radius: 0.5rem; padding: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
     .columns-menu { display: grid; grid-auto-rows: min-content; row-gap: 6px; }
-    .columns-menu-header { font-weight: 600; color: var(--sl-color-neutral-700); margin-bottom: 4px; }
+    .columns-menu-header { font-weight: 600; color: var(--header-text-color, var(--sl-color-neutral-700)); margin-bottom: 4px; }
     .column-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
     .column-actions { display: inline-flex; align-items: center; gap: 6px; }
     .header, .row { display: grid; align-items: center; padding-left: 8px; padding-right: 8px; }
     /* Grid columns are set via inline styles based on preferences */
     .header { 
       font-weight: 600; 
-      position: sticky; 
-      top: 0; 
-      background: linear-gradient(180deg, var(--sl-color-gray-50) 0%, var(--sl-color-gray-100) 100%); 
-      z-index: 10; 
+      background: var(--table-header-bg);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
       padding: 8px 0; 
-      border-bottom: 2px solid var(--sl-color-primary-300); 
-      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      border-bottom: 1px solid var(--table-border-color); 
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3);
+      transition: background-color 0.3s ease;
     }
     .header .th { 
       text-align: left; 
       background: transparent; 
       border: none; 
-      color: var(--sl-color-neutral-700); 
+      color: var(--header-text-color, var(--sl-color-neutral-200)); 
       cursor: pointer; 
       padding: 4px 8px; 
       display: flex;
@@ -833,9 +864,10 @@ export class PoeGeneralPricedListElement extends LitElement {
       height: 100%;
     }
     .header .th:hover {
-      background: var(--sl-color-neutral-200);
-      color: var(--sl-color-primary-700);
+      background: var(--table-row-hover-bg);
+      color: var(--sl-color-primary-600);
     }
+    .header .th:focus-visible { outline: 2px solid var(--sl-color-primary-600); outline-offset: 2px; background: var(--table-row-hover-bg); }
     .header .th.sorted {
       color: var(--sl-color-primary-700);
       font-weight: 700;
@@ -867,22 +899,28 @@ export class PoeGeneralPricedListElement extends LitElement {
     .corrupted, .category { text-align: center; justify-self: center; }
     .price, .total { text-align: right; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; font-weight: 600; justify-self: end; }
     .row { 
-      border-bottom: 1px solid var(--sl-color-gray-200); 
-      padding: 5px 8px; 
-      transition: background-color 0.15s ease;
+      background: var(--table-row-bg);
+      color: var(--table-text-color);
+      border-bottom: 1px solid var(--table-border-color); 
+      padding: 6px 8px; 
+      transition: all 0.15s ease;
+      border-radius: 4px;
+      margin-bottom: 1px;
     }
+    .row:nth-child(even) { background: var(--table-row-alt-bg); }
     .row > div { padding: 0 8px; }
     .row.ultra { padding: 3px 0; }
     .row:hover {
-      background: var(--sl-color-neutral-100);
-      border-color: var(--sl-color-primary-200);
+      background: var(--table-row-hover-bg);
+      transform: translateX(2px);
     }
-    .row.selected { background: rgba(0,112,243,0.12); border-left: 3px solid var(--sl-color-primary-600); }
+    .row:focus-within { outline: 2px solid var(--sl-color-primary-600); outline-offset: 0; }
+    .row.selected { background: rgba(0,112,243,0.2); border-left: 3px solid var(--sl-color-primary-600); }
     .toolbar { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; }
-    .row[data-category="Currency"]:hover { background: var(--sl-color-warning-50); }
-    .row[data-category="Gem"]:hover { background: var(--sl-color-primary-50); }
-    .row[data-category="Map"]:hover { background: var(--sl-color-success-50); }
-    .row[data-category="Fragment"]:hover { background: var(--sl-color-danger-50); }
+    .row[data-category="Currency"]:hover { background: var(--table-row-hover-bg); }
+    .row[data-category="Gem"]:hover { background: var(--table-row-hover-bg); }
+    .row[data-category="Map"]:hover { background: var(--table-row-hover-bg); }
+    .row[data-category="Fragment"]:hover { background: var(--table-row-hover-bg); }
     
     /* Layout adjustments when filters are open */
     .list { 
@@ -900,23 +938,14 @@ export class PoeGeneralPricedListElement extends LitElement {
       width: 100%;
       overflow: hidden;
     }
-    lit-virtualizer {
-      flex: 1;
-      width: 100%;
-      height: 100%;
-    }
+    :host-context(.sl-theme-dark) .table-container { background: var(--table-bg); }
+    :host-context(.sl-theme-dark) .table-container { background: var(--table-bg); }
     .row {
       width: 100%;
       box-sizing: border-box;
     }
     .list.filters-open .table-container {
       margin-right: 320px;
-      transition: margin-right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    }    }
-    .table-container {
-      flex: 1;
-      overflow: auto;
-      margin-right: 0;
       transition: margin-right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
     
@@ -978,6 +1007,7 @@ export class PoeGeneralPricedListElement extends LitElement {
     }
     
     /* Range Compact - Side by Side */
+    .range-compact {
       display: flex;
       align-items: center;
       gap: 0.4rem;
@@ -1001,8 +1031,8 @@ export class PoeGeneralPricedListElement extends LitElement {
     
     /* Columns Menu */
     .columns-menu {
-      background: var(--sl-panel-background-color);
-      border: 1px solid var(--sl-color-neutral-200);
+      background: var(--table-bg);
+      border: 1px solid var(--table-border-color);
       border-radius: 8px;
       padding: 8px;
       min-width: 200px;
@@ -1016,18 +1046,30 @@ export class PoeGeneralPricedListElement extends LitElement {
       padding: 8px 12px;
       font-weight: 600;
       font-size: 0.85rem;
-      color: var(--sl-color-neutral-700);
-      border-bottom: 1px solid var(--sl-color-neutral-200);
+      color: var(--header-text-color, var(--sl-color-neutral-700));
+      border-bottom: 1px solid var(--table-border-color);
       margin-bottom: 4px;
     }
     
     .column-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; }
-    .column-row:hover { background: var(--sl-color-neutral-100); }
+    .column-row:hover { background: var(--table-row-hover-bg); }
     .column-actions { display: inline-flex; gap: 6px; align-items: center; }
     
     .column-toggle sl-checkbox {
       width: 100%;
     }
+
+    :host-context(.sl-theme-dark) .filters-group sl-input,
+    :host-context(.sl-theme-dark) .filters-content sl-input,
+    :host-context(.sl-theme-dark) .filters-content sl-select {
+      --sl-input-background-color: #0e1113;
+      --sl-input-border-color: var(--sl-color-neutral-700);
+      --sl-input-color: var(--sl-color-neutral-100);
+      --sl-input-placeholder-color: var(--sl-color-neutral-500);
+    }
+
+    :host-context(.sl-theme-dark) .header .th:hover { color: var(--sl-color-primary-500); }
+    :host-context(.sl-theme-dark) .row.selected { background: rgba(0, 112, 243, 0.25); border-left-color: var(--sl-color-primary-600); }
   `;
 }
 

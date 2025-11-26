@@ -9,12 +9,13 @@ export const styles: CSSResult = css`
     .tab-badge-group {
         display: flex;
         flex-direction: column;
-        gap: 0.4rem;
-        background: var(--sl-color-neutral-0);
-        border: 1px solid var(--sl-color-neutral-200);
-        border-radius: 0.5rem;
-        padding: 0.3rem;
-        box-shadow: 0 1px 1px rgba(0,0,0,0.04);
+        gap: 0.75rem;
+        /* Removed background/border for a cleaner look, relying on the badges themselves */
+        padding: 0.25rem;
+    }
+
+    :host-context(.sl-theme-dark) .tab-badge-group {
+        /* No specific overrides needed if we remove the container box */
     }
 
 	/* Compact Header */
@@ -167,14 +168,14 @@ export const styles: CSSResult = css`
         align-items: center;
         gap: 0.5rem;
         padding: 0.25rem;
-        background: var(--sl-color-neutral-100);
+        background: var(--card-bg);
         border-radius: 0.375rem;
-        border: 1px solid var(--sl-color-neutral-200);
+        border: var(--card-border);
     }
 
     :host-context(.sl-theme-dark) .selection-controls {
-        background: var(--sl-color-neutral-700);
-        border-color: var(--sl-color-neutral-600);
+        background: var(--card-bg);
+        border: var(--card-border);
     }
 
     .selection-controls sl-button::part(base) {

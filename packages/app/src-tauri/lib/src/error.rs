@@ -123,3 +123,27 @@ impl From<rusqlite::Error> for Error {
         Error::SqlError(value)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn stash_error_serialization_includes_fields() {
+        let e = Error::StashTabError { stash_id: "test".to_string(), league: divi::League::Standard, message: "API Error 401: Unauthorized".to_string() };
+        let v = serde_json::to_value(&e).unwrap();
+        assert_eq!(v.get("appErrorFromTauri").unwrap(), &json!(true));
+        assert_eq!(v.get("kind").unwrap(), &json!("stashTabError"));
+        assert_eq!(v.get("league").unwrap(), &json!(divi::League::Standard));
+        assert_eq!(v.get("stashId").unwrap(), &json!("test"));
+        assert_eq!(v.get("message").unwrap(), &json!("API Error 401: Unauthorized"));
+    }
+
+    #[test]
+    fn retry_after_message_is_human_readable() {
+        let e = Error::RetryAfter("10".to_string());
+        let msg = e.to_string();
+        assert!(msg.contains("retry after 10"));
+    }
+}

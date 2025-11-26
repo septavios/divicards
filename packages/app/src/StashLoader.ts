@@ -44,9 +44,9 @@ export class StashLoader implements IStashLoader {
 		return command('essence_prices', { league });
 	}
 
-    gemPrices(league: League): Promise<Array<{ name: string; level: number; quality: number; corrupt?: boolean; chaos_value: number | null }>> {
-        return command('gem_prices', { league });
-    }
+	gemPrices(league: League): Promise<Array<{ name: string; level: number; quality: number; corrupt?: boolean; chaos_value: number | null }>> {
+		return command('gem_prices', { league });
+	}
 
 	oilPrices(league: League): Promise<Array<{ name: string; chaos_value: number | null }>> {
 		return command('oil_prices', { league });
@@ -80,7 +80,11 @@ export class StashLoader implements IStashLoader {
 		return command('ninja_dense_overviews_raw', { league });
 	}
 
-	wealthSnapshot(league: League, tabs: Array<{ stash_id: string; substash_id?: string | null }>): Promise<{ timestamp: number; league: string; total_chaos: number; total_divines: number | null; by_category: Record<string, { chaos: number }> }> {
+	priceSourcesMatrix(league: League, opts?: { includeLowConfidence?: boolean }): Promise<Array<{ category: string; name: string; variant?: string | null; tier?: number | null; dense?: number | null; currency_overview?: number | null; item_overview?: number | null; poewatch?: number | null }>> {
+		return command('price_sources_matrix', { league, include_low_confidence: !!opts?.includeLowConfidence });
+	}
+
+	wealthSnapshot(league: League, tabs: Array<{ stash_id: string; substash_id?: string | null }>): Promise<{ timestamp: number; league: string; total_chaos: number; total_divines: number | null; by_category: Record<string, { chaos: number }>; inventory?: Record<string, number> }> {
 		return command('wealth_snapshot', { league, tabs });
 	}
 
@@ -90,7 +94,7 @@ export class StashLoader implements IStashLoader {
 		offset?: number,
 		startTimestamp?: number,
 		endTimestamp?: number
-	): Promise<Array<{ timestamp: number; league: string; total_chaos: number; total_divines: number | null; by_category: Record<string, { chaos: number }> }>> {
+	): Promise<Array<{ timestamp: number; league: string; total_chaos: number; total_divines: number | null; by_category: Record<string, { chaos: number }>; inventory?: Record<string, number> }>> {
 		return command('list_snapshots', {
 			league,
 			limit,
@@ -120,7 +124,7 @@ export class StashLoader implements IStashLoader {
 		return command('delete_all_snapshots', { league });
 	}
 
-	wealthSnapshotCached(league: League, tabs: Array<TabWithItems>): Promise<{ timestamp: number; league: string; total_chaos: number; total_divines: number | null; by_category: Record<string, { chaos: number }> }> {
+	wealthSnapshotCached(league: League, tabs: Array<TabWithItems>): Promise<{ timestamp: number; league: string; total_chaos: number; total_divines: number | null; by_category: Record<string, { chaos: number }>; inventory?: Record<string, number> }> {
 		return command('wealth_snapshot_cached', { league, tabs });
 	}
 
@@ -128,9 +132,10 @@ export class StashLoader implements IStashLoader {
 		league: League,
 		tabs: Array<TabWithItems>,
 		baseline_item_prices?: Record<string, number>,
-		baseline_by_category?: Record<string, { chaos: number }>
-	): Promise<{ mode: 'item' | 'category'; changes: any[]; totalVariance?: number }> {
-		return command('price_variance_cached', { league, tabs, baseline_item_prices, baseline_by_category });
+		baseline_by_category?: Record<string, { chaos: number }>,
+		baseline_inventory?: Record<string, number>
+	): Promise<{ mode: 'item' | 'category' | 'inventory'; changes: any[]; totalVariance?: number }> {
+		return command('price_variance_cached', { league, tabs, baseline_item_prices, baseline_by_category, baseline_inventory });
 	}
 
 
@@ -157,4 +162,5 @@ export class StashLoader implements IStashLoader {
 
 		return flat;
 	}
+
 }

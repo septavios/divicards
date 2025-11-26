@@ -2,33 +2,35 @@ import { DivinationCardsSample, League } from './types.js';
 import { NoItemsTab, TabWithItems } from 'poe-custom-elements';
 
 export interface IStashLoader {
-    tabs(league: League): Promise<NoItemsTab[]>;
-    sampleFromTab(tabId: string, league: League): Promise<DivinationCardsSample>;
-    tab: (tabId: string, league: League) => Promise<TabWithItems>;
-    tabFromBadge: (tab: NoItemsTab, league: League) => Promise<TabWithItems>;
-    sampleFromBadge: (tab: NoItemsTab, league: League) => Promise<DivinationCardsSample>;
-    mapPrices: (league: League) => Promise<Array<{ name: string; tier: number; chaos_value: number | null }>>;
-    currencyPrices: (league: League) => Promise<Array<{ name: string; chaos_value: number | null }>>;
-    fragmentPrices: (league: League) => Promise<Array<{ name: string; chaos_value: number | null }>>;
-    essencePrices: (league: League) => Promise<Array<{ name: string; variant: string | null; chaos_value: number | null }>>;
-    gemPrices: (league: League) => Promise<Array<{ name: string; level: number; quality: number; corrupt?: boolean; chaos_value: number | null }>>;
-    oilPrices: (league: League) => Promise<Array<{ name: string; chaos_value: number | null }>>;
-    incubatorPrices: (league: League) => Promise<Array<{ name: string; chaos_value: number | null }>>;
-    fossilPrices: (league: League) => Promise<Array<{ name: string; chaos_value: number | null }>>;
-    resonatorPrices: (league: League) => Promise<Array<{ name: string; chaos_value: number | null }>>;
-    deliriumOrbPrices: (league: League) => Promise<Array<{ name: string; chaos_value: number | null }>>;
-    vialPrices: (league: League) => Promise<Array<{ name: string; chaos_value: number | null }>>;
-    divinationCardPrices: (league: League) => Promise<Array<{ name: string; chaos_value: number | null }>>;
-    ninjaDenseOverviewsRaw: (league: League) => Promise<Record<string, unknown>>;
-    wealthSnapshot: (league: League, tabs: Array<{ stash_id: string; substash_id?: string | null }>) => Promise<{ timestamp: number; league: string; total_chaos: number; total_divines: number | null; by_category: Record<string, { chaos: number }> }>;
-    listSnapshots: (league: League, limit?: number) => Promise<Array<{ timestamp: number; league: string; total_chaos: number; total_divines: number | null; by_category: Record<string, { chaos: number }> }>>;
-    wealthSnapshotCached: (league: League, tabs: Array<TabWithItems>) => Promise<{ timestamp: number; league: string; total_chaos: number; total_divines: number | null; by_category: Record<string, { chaos: number }> }>;
-    priceVarianceCached: (
-        league: League,
-        tabs: Array<TabWithItems>,
-        baseline_item_prices?: Record<string, number>,
-        baseline_by_category?: Record<string, { chaos: number }>
-    ) => Promise<{ mode: 'item' | 'category'; changes: any[]; totalVariance?: number }>;
+	tabs(league: League): Promise<NoItemsTab[]>;
+	sampleFromTab(tabId: string, league: League): Promise<DivinationCardsSample>;
+	tab: (tabId: string, league: League) => Promise<TabWithItems>;
+	tabFromBadge: (tab: NoItemsTab, league: League) => Promise<TabWithItems>;
+	sampleFromBadge: (tab: NoItemsTab, league: League) => Promise<DivinationCardsSample>;
+	mapPrices: (league: League) => Promise<Array<{ name: string; tier: number; chaos_value: number | null }>>;
+	currencyPrices: (league: League) => Promise<Array<{ name: string; chaos_value: number | null }>>;
+	fragmentPrices: (league: League) => Promise<Array<{ name: string; chaos_value: number | null }>>;
+	essencePrices: (league: League) => Promise<Array<{ name: string; variant: string | null; chaos_value: number | null }>>;
+	gemPrices: (league: League) => Promise<Array<{ name: string; level: number; quality: number; corrupt?: boolean; chaos_value: number | null }>>;
+	oilPrices: (league: League) => Promise<Array<{ name: string; chaos_value: number | null }>>;
+	incubatorPrices: (league: League) => Promise<Array<{ name: string; chaos_value: number | null }>>;
+	fossilPrices: (league: League) => Promise<Array<{ name: string; chaos_value: number | null }>>;
+	resonatorPrices: (league: League) => Promise<Array<{ name: string; chaos_value: number | null }>>;
+	deliriumOrbPrices: (league: League) => Promise<Array<{ name: string; chaos_value: number | null }>>;
+	vialPrices: (league: League) => Promise<Array<{ name: string; chaos_value: number | null }>>;
+	divinationCardPrices: (league: League) => Promise<Array<{ name: string; chaos_value: number | null }>>;
+	ninjaDenseOverviewsRaw: (league: League) => Promise<Record<string, unknown>>;
+	priceSourcesMatrix: (league: League, opts?: { includeLowConfidence?: boolean }) => Promise<Array<{ category: string; name: string; variant?: string | null; tier?: number | null; dense?: number | null; currency_overview?: number | null; item_overview?: number | null; poewatch?: number | null }>>;
+	wealthSnapshot: (league: League, tabs: Array<{ stash_id: string; substash_id?: string | null }>) => Promise<{ timestamp: number; league: string; total_chaos: number; total_divines: number | null; by_category: Record<string, { chaos: number }>; inventory?: Record<string, number> }>;
+	listSnapshots: (league: League, limit?: number) => Promise<Array<{ timestamp: number; league: string; total_chaos: number; total_divines: number | null; by_category: Record<string, { chaos: number }>; inventory?: Record<string, number> }>>;
+	wealthSnapshotCached: (league: League, tabs: Array<TabWithItems>) => Promise<{ timestamp: number; league: string; total_chaos: number; total_divines: number | null; by_category: Record<string, { chaos: number }>; inventory?: Record<string, number> }>;
+	priceVarianceCached: (
+		league: League,
+		tabs: Array<TabWithItems>,
+		baseline_item_prices?: Record<string, number>,
+		baseline_by_category?: Record<string, { chaos: number }>,
+		baseline_inventory?: Record<string, number>
+	) => Promise<{ mode: 'item' | 'category' | 'inventory'; changes: any[]; totalVariance?: number }>;
 }
 
 export interface IDefaultStashLoader {
@@ -47,7 +49,7 @@ export interface IDefaultStashLoader {
 	'97b464048e88ad2c6433dacbefd67030c97523a5'
 );
 
-    ```
+	```
  */
 export class StashLoader implements IDefaultStashLoader {
 	static API_URL = 'https://api.pathofexile.com' as const;

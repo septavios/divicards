@@ -20,6 +20,8 @@
 
 :root[data-theme='dark'] {
 	color-scheme: dark;
+	background-color: var(--sl-color-neutral-900);
+	color: var(--sl-color-neutral-100);
 }
 
 @font-face {

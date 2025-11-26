@@ -35,14 +35,14 @@ export class TabBadgeElement extends LitElement {
 	}
 
 	get computedColor(): string {
-		if (this.color) {
-			return this.color;
-		}
-		if (this.tab.metadata?.colour) {
-			return `#${this.tab.metadata?.colour?.padStart(6, '0')}`;
-		}
-		return '#fff';
-	}
+        if (this.color) {
+            return this.color;
+        }
+        if (this.tab.metadata?.colour) {
+            return `#${this.tab.metadata?.colour?.padStart(6, '0')}`;
+        }
+        return 'var(--sl-color-neutral-500)';
+    }
 
 	protected nameLabel(): TemplateResult {
 		const removeOnly = this.tab.name.includes(REMOVE_ONLY);

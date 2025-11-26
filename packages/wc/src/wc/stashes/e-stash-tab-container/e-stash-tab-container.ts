@@ -58,7 +58,7 @@ export class StashTabContainerElement extends LitElement {
         return html`<header class="header">
 				<div class="header-main">
 					<div class="badge-and-copy">
-					${this.tab ? html`<e-tab-badge as="button" .tab=${this.tab}></e-tab-badge>` : null}
+					${this.tab ? html`<e-tab-badge .tab=${this.tab}></e-tab-badge>` : null}
                     ${this.tab
                 ? html`<sl-copy-button
                                 .value=${JSON.stringify(this.tab, null, 4)}
@@ -237,7 +237,7 @@ export class StashTabContainerElement extends LitElement {
 		.header-main {
 			padding: 1rem;
 			display: flex;
-			background-color: var(--sl-color-gray-50);
+			background-color: var(--sl-color-neutral-50);
 			border-bottom: 1px solid var(--sl-color-gray-200);
 			align-items: center;
 			gap: 1rem;
@@ -245,10 +245,24 @@ export class StashTabContainerElement extends LitElement {
 			min-height: 75px;
 		}
 
+		:host-context(.sl-theme-dark) .header-main {
+			background-color: var(--sl-color-neutral-800);
+			border-bottom-color: var(--sl-color-neutral-700);
+			box-shadow: 0 1px 0 rgba(0,0,0,0.35);
+		}
+
 		.badge-and-copy {
 			display: flex;
 			align-items: center;
 			gap: 1rem;
+		}
+
+		:host-context(.sl-theme-dark) sl-button,
+		:host-context(.sl-theme-dark) sl-select,
+		:host-context(.sl-theme-dark) sl-copy-button {
+			--sl-input-background-color: #0e1113;
+			--sl-input-border-color: var(--sl-color-neutral-700);
+			--sl-input-color: var(--sl-color-neutral-100);
 		}
 
 		.div-controls { display: flex; align-items: center; gap: 0.6rem; }

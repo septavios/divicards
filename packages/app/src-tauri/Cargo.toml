@@ -44,6 +44,7 @@ url = "2.5.0"
 chrono = { version = "0.4.31", features = ["serde"] }
 rusqlite = { version = "0.31", features = ["bundled"] }
 dirs = "5"
+robius_authentication = { git = "https://github.com/project-robius/robius", package = "robius-authentication" }
 
 [features]
 # by default Tauri runs in production mode

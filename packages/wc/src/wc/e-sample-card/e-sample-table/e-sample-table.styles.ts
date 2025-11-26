@@ -12,10 +12,10 @@ const table = css`
 		overflow-y: scroll;
 	}
 
-	table {
-		border-collapse: collapse;
-        background-color: background-color: var(--sl-color-gray-50);
-	}
+    table {
+        border-collapse: collapse;
+        background-color: var(--sl-color-neutral-50);
+    }
 
  
     .th-number, .td-number {
@@ -38,25 +38,27 @@ const table = css`
         table-layout: fixed;/* even columns width , fix width of table too*/
     }
 
-	thead {
-		position: sticky;
-		top: -1px;
-		background-color: var(--sl-color-gray-50);
-		z-index: 10;
-		scroll-padding-top: 1000px;
-		border: 1px solid var(--sl-color-gray-300);
-	}
+    thead {
+        position: sticky;
+        top: -1px;
+        background-color: var(--sl-color-neutral-50);
+        z-index: 10;
+        scroll-padding-top: 1000px;
+        border: 1px solid var(--sl-color-neutral-300);
+        box-shadow: 0 1px 0 rgba(0,0,0,0.05);
+    }
 
     .th,
-	.td {
-		padding: 1rem;
-		border: 1px solid var(--sl-color-gray-300);
-		text-align: center;
-	}
+    .td {
+        padding: 1rem;
+        border: 1px solid var(--sl-color-neutral-300);
+        text-align: center;
+        background-color: var(--sl-color-neutral-0);
+    }
 
-	.th {
-		font-weight: 500;
-		color: var(--sl-color-gray-800);
+    .th {
+        font-weight: 500;
+        color: var(--sl-color-neutral-800);
 
 		& > div {
 			display: flex;
@@ -67,25 +69,32 @@ const table = css`
 		}
 	}
 
-	.td {
-		color: var(--sl-color-gray-700);
-		--poe-item-size: 1rem;
-		& > div {
-			display: flex;
-			align-items: center;
-			gap: 0.5rem;
-		}
-	}
+    .td {
+        color: var(--sl-color-neutral-700);
+        --poe-item-size: 1rem;
+        & > div {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+    }
 
-	tr {
-		&:hover {
-			outline: 1px var(--sl-color-blue-500) solid;
-		}
+    tr {
+        &:hover {
+            outline: 1px var(--sl-color-primary-400) solid;
+        }
 
-		&:hover .td {
-			background-color: var(--sl-color-blue-100);
-		}
-	}
+        &:hover .td {
+            background-color: var(--sl-color-primary-50);
+        }
+    }
+
+    :host-context(.sl-theme-dark) table { background-color: var(--sl-color-neutral-100); }
+    :host-context(.sl-theme-dark) thead { background-color: var(--sl-color-neutral-900); border-color: var(--sl-color-neutral-700); box-shadow: 0 1px 0 rgba(0,0,0,0.3); }
+    :host-context(.sl-theme-dark) .td, :host-context(.sl-theme-dark) .th { background-color: var(--sl-color-neutral-900); border-color: var(--sl-color-neutral-700); }
+    :host-context(.sl-theme-dark) .td { color: var(--sl-color-neutral-200); }
+    :host-context(.sl-theme-dark) .th { color: var(--sl-color-neutral-100); }
+    :host-context(.sl-theme-dark) tr:hover .td { background-color: rgba(255,255,255,0.04); }
 `;
 
 export const styles: CSSResult = css`

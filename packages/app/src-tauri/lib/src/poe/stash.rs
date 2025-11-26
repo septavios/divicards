@@ -203,7 +203,7 @@ impl StashAPI {
 }
 
 fn access_token() -> String {
-    AccessTokenStorage::new().get().unwrap()
+    AccessTokenStorage::new().get().unwrap_or_default()
 }
 
 #[instrument]

@@ -26,6 +26,11 @@ export const styles: CSSResult = css`
 		transition: 0.2s border-color;
 	}
 
+	:host-context(.sl-theme-dark) .sample-card {
+		background-color: var(--sl-color-neutral-800);
+		border: 1px solid var(--sl-color-neutral-700);
+	}
+
 	.card-header {
 		display: flex;
 		justify-content: space-between;

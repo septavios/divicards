@@ -12,6 +12,7 @@ import '@shoelace-style/shoelace/dist/components/switch/switch.js';
 import '@shoelace-style/shoelace/dist/components/select/select.js';
 import '@shoelace-style/shoelace/dist/components/option/option.js';
 import '@shoelace-style/shoelace/dist/components/badge/badge.js';
+import '@shoelace-style/shoelace/dist/components/tooltip/tooltip.js';
 import '../../e-pagination/e-pagination.js';
 import '../../e-help-tip.js';
 
@@ -143,6 +144,7 @@ export class TabBadgeGroupElement extends LitElement {
                                         size="small"
                                         ?disabled=${this.page <= 1}
                                         @click=${this.decreasePage}
+                                        aria-label="Previous page"
                                     >
                                         <sl-icon name="chevron-left"></sl-icon>
                                     </sl-button>
@@ -153,6 +155,7 @@ export class TabBadgeGroupElement extends LitElement {
                                         size="small"
                                         ?disabled=${this.page >= Math.ceil(this.tabsTotal / this.perPage)}
                                         @click=${this.increasePage}
+                                        aria-label="Next page"
                                     >
                                         <sl-icon name="chevron-right"></sl-icon>
                                     </sl-button>
@@ -164,6 +167,7 @@ export class TabBadgeGroupElement extends LitElement {
                                     @sl-change=${(e: any) => this.#handle_per_page_change(new PerPageChangeEvent(Number(e.target.value)))}
                                     hoist
                                     style="width: 80px;"
+                                    aria-label="Items per page"
                                 >
                                     <sl-option value="20">20</sl-option>
                                     <sl-option value="30">30</sl-option>
@@ -180,11 +184,12 @@ export class TabBadgeGroupElement extends LitElement {
                                             name="${this.hideRemoveOnly ? 'eye-slash' : 'eye'}"
                                             @click=${() => { this.hideRemoveOnly = !this.hideRemoveOnly; }}
                                             style="font-size: 1.1rem;"
+                                            aria-label="${this.hideRemoveOnly ? 'Show remove-only tabs' : 'Hide remove-only tabs'}"
                                         ></sl-icon-button>
                                     </sl-tooltip>
                                 ` : nothing}
 
-                                <sl-select size="small" value=${this.density} hoist @sl-change=${(e: any) => { this.density = e.target.value; }} style="width: 100px;">
+                                <sl-select size="small" value=${this.density} hoist @sl-change=${(e: any) => { this.density = e.target.value; }} style="width: 100px;" aria-label="Display density">
                                     <sl-option value="ultra">Ultra</sl-option>
                                     <sl-option value="dense">Dense</sl-option>
                                     <sl-option value="compact">Compact</sl-option>
@@ -214,7 +219,6 @@ export class TabBadgeGroupElement extends LitElement {
                             role="listitem"
                         >
                             <e-tab-badge
-                                .as=${'button'}
                                 .tab=${tab}
                                 .selected=${this.selected_tabs.has(tab.id)}
                                 .disabled=${this.badgesDisabled}

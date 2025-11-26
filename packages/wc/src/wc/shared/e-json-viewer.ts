@@ -46,12 +46,15 @@ export class EJsonViewer extends LitElement {
 
   static styles: CSSResult = css`
     :host { display: block; width: 100%; }
-    .tools { display: flex; gap: 8px; align-items: center; padding-bottom: 8px; position: sticky; top: 0; background: var(--sl-color-gray-50); z-index: 1; }
+    .tools { display: flex; gap: 8px; align-items: center; padding-bottom: 8px; position: sticky; top: 0; background: var(--sl-color-neutral-50); z-index: 1; }
+    :host-context(.sl-theme-dark) .tools { background: var(--sl-color-neutral-900); }
     .tree { display: grid; grid-auto-rows: min-content; row-gap: 6px; max-height: 60vh; overflow: auto; }
     sl-details::part(summary) { font-weight: 600; }
     .leaf { padding: 4px 0; }
-    .k { color: var(--sl-color-gray-700); }
+    .k { color: var(--sl-color-neutral-700); }
+    :host-context(.sl-theme-dark) .k { color: var(--sl-color-neutral-300); }
     .v { color: var(--sl-color-primary-700); }
+    :host-context(.sl-theme-dark) .v { color: var(--sl-color-primary-300); }
   `;
 }
 

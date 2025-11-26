@@ -75,6 +75,9 @@ export class MockStashLoader implements IStashLoader {
     async ninjaDenseOverviewsRaw(_league: League): Promise<Record<string, unknown>> {
         return {};
     }
+    async priceSourcesMatrix(_league: League, _opts?: { includeLowConfidence?: boolean }): Promise<Array<{ category: string; name: string; variant?: string | null; tier?: number | null; dense?: number | null; currency_overview?: number | null; item_overview?: number | null; poewatch?: number | null }>> {
+        return [];
+    }
     async wealthSnapshot(_league: League, _tabs: Array<{ stash_id: string; substash_id?: string | null }>): Promise<{ timestamp: number; league: string; total_chaos: number; total_divines: number | null; by_category: Record<string, { chaos: number }> }> {
         const now = Math.floor(Date.now() / 1000);
         return { timestamp: now, league, total_chaos: 0, total_divines: null, by_category: {} };
@@ -90,8 +93,9 @@ export class MockStashLoader implements IStashLoader {
         _league: League,
         _tabs: Array<TabWithItems>,
         _baseline_item_prices?: Record<string, number>,
-        _baseline_by_category?: Record<string, { chaos: number }>
-    ): Promise<{ mode: 'item' | 'category'; changes: any[]; totalVariance?: number }> {
+        _baseline_by_category?: Record<string, { chaos: number }>,
+        _baseline_inventory?: Record<string, number>
+    ): Promise<{ mode: 'item' | 'category' | 'inventory'; changes: any[]; totalVariance?: number }> {
         return { mode: 'category', changes: [], totalVariance: 0 };
     }
     tabs(_league: League): Promise<NoItemsTab[]> {

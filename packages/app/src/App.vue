@@ -87,7 +87,12 @@ const bulkMode = ref<boolean>(false);
 
 const bulkLoadStash = async () => {
     if (!authStore.loggedIn) {
-        await authStore.login();
+        try {
+            await authStore.login();
+        } catch (err) {
+            toast('warning', 'Authentication cancelled or failed');
+            return;
+        }
     }
     stashVisible.value = true;
     bulkMode.value = true;
@@ -153,7 +158,12 @@ async function quickExportToSheets() {
 
 const openStashWindow = async () => {
     if (!authStore.loggedIn) {
-        await authStore.login();
+        try {
+            await authStore.login();
+        } catch (err) {
+            toast('warning', 'Authentication cancelled or failed');
+            return;
+        }
     }
     stashVisible.value = true;
     bulkMode.value = false;
@@ -168,7 +178,12 @@ const openStashWindow = async () => {
 const extractSelectedTab = async () => {
     if (extractingSelected.value) return;
     if (!authStore.loggedIn) {
-        await authStore.login();
+        try {
+            await authStore.login();
+        } catch (err) {
+            toast('warning', 'Authentication cancelled or failed');
+            return;
+        }
     }
     if (!selectedTabId.value) {
         toast('warning', 'Select a Divination Card tab');
@@ -523,6 +538,11 @@ const handleDropZoneDrop = (event: DragEvent) => {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 }
 
+:global(.sl-theme-dark) body {
+    background-color: var(--sl-color-neutral-900);
+    color: var(--sl-color-neutral-100);
+}
+
 .drop-zone {
 	min-height: 100vh;
 	position: relative;
@@ -541,15 +561,15 @@ const handleDropZoneDrop = (event: DragEvent) => {
 }
 
 .drop-overlay-message {
-	position: absolute;
-	inset: 0;
-	display: flex;
-	justify-content: center;
-	align-items: center;
-	z-index: 50;
-	pointer-events: none;
+    position: absolute;
+    inset: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 50;
+    pointer-events: none;
     backdrop-filter: blur(4px);
-    background: rgba(255, 255, 255, 0.5);
+    background: rgba(255, 255, 255, 0.25);
 }
 
 .toolbar {

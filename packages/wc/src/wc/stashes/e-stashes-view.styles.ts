@@ -3,15 +3,29 @@ import { css, CSSResult } from 'lit';
 export const styles: CSSResult = css`
 	:host {
 		display: block;
-		/* Remove fixed max-width to allow container to control it, or keep it large */
 		width: 100%;
+        --glass-bg: rgba(255, 255, 255, 0.85);
+        --glass-border: 1px solid rgba(255, 255, 255, 0.5);
+        --glass-shadow: 0 4px 24px -1px rgba(0, 0, 0, 0.05);
+        --card-bg: var(--sl-color-neutral-0);
+        --card-border: 1px solid var(--sl-color-neutral-200);
+        --card-radius: 1rem;
 	}
+
+    :host-context(.sl-theme-dark) {
+        --glass-bg: rgba(30, 30, 35, 0.85);
+        --glass-border: 1px solid rgba(255, 255, 255, 0.08);
+        --glass-shadow: 0 4px 24px -1px rgba(0, 0, 0, 0.4);
+        --card-bg: var(--sl-color-neutral-800);
+        --card-border: 1px solid var(--sl-color-neutral-700);
+    }
 
 	.main-stashes-component {
 		position: relative;
         display: flex;
-    flex-direction: column;
-        gap: 0.25rem;
+        flex-direction: column;
+        gap: 1rem;
+        padding-bottom: 2rem;
 	}
 
 	wc-help-tip::part(tooltip) {
@@ -19,25 +33,27 @@ export const styles: CSSResult = css`
 	}
 
     /* --- Header --- */
-	.header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
+    .header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
         gap: 1rem;
-        background: var(--sl-color-neutral-0);
-        padding: 0.5rem 1rem;
-        border-radius: 1rem;
-        border: 1px solid var(--sl-color-neutral-200);
-        box-shadow: 0 4px 20px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.02);
+        background: var(--card-bg);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        padding: 0.75rem 1.25rem;
+        border-radius: var(--card-radius);
+        border: var(--card-border);
+        box-shadow: var(--glass-shadow);
         flex-wrap: wrap;
         color: var(--sl-color-neutral-900);
-	}
+        transition: all 0.3s ease;
+    }
 
     :host-context(.sl-theme-dark) .header {
-        background: var(--sl-color-neutral-800);
-        border-color: var(--sl-color-neutral-700);
+        background: var(--card-bg);
+        border: var(--card-border);
         color: var(--sl-color-neutral-100);
-        box-shadow: 0 4px 20px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
     }
 
     .header-left {
@@ -132,8 +148,8 @@ export const styles: CSSResult = css`
     }
 
     .bulk-progress {
-        background: var(--sl-color-neutral-0);
-        border: 1px solid var(--sl-color-neutral-200);
+        background: var(--sl-color-neutral-900);
+        border: 1px solid var(--sl-color-neutral-700);
         border-radius: 0.5rem;
         padding: 0.375rem 0.5rem;
         margin-bottom: 0.125rem;
@@ -146,6 +162,9 @@ export const styles: CSSResult = css`
         font-size: 0.9rem;
         color: var(--sl-color-neutral-700);
     }
+    :host-context(.sl-theme-dark) .bulk-row {
+        color: var(--sl-color-neutral-200);
+    }
 	.bulk-bar {
 		margin-top: 0.25rem;
 		height: 6px;
@@ -153,6 +172,11 @@ export const styles: CSSResult = css`
 		background: var(--sl-color-neutral-100);
 		overflow: hidden;
 	}
+
+    :host-context(.sl-theme-dark) .bulk-bar {
+        background: var(--sl-color-neutral-700);
+    }
+
 	.bulk-fill {
 		height: 100%;
 		background: var(--sl-color-primary-600);
@@ -171,6 +195,7 @@ export const styles: CSSResult = css`
         flex-direction: column;
         gap: 0.5rem;
 		animation: fade-in 0.4s ease-out;
+        content-visibility: auto;
 	}
 
 	@keyframes fade-in {
@@ -178,29 +203,29 @@ export const styles: CSSResult = css`
 		to { opacity: 1; transform: translateY(0); }
 	}
 
-    /* New Compact Metrics Grid */
-    .metrics-grid {
+	/* New Compact Metrics Grid */
+	.metrics-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
         gap: 0.5rem;
     }
 
     .metric-card {
-        background: var(--sl-color-neutral-0);
-        border: 1px solid var(--sl-color-neutral-200);
-        border-radius: 0.5rem;
-        padding: 0.75rem;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        background: var(--card-bg);
+        border: var(--card-border);
+        border-radius: var(--card-radius);
+        padding: 1rem;
+        box-shadow: var(--glass-shadow);
         display: flex;
         flex-direction: column;
         justify-content: space-between;
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
     }
     
     .metric-card:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
-        border-color: var(--sl-color-primary-200);
+        transform: translateY(-2px);
+        box-shadow: 0 8px 16px -2px rgba(0,0,0,0.1);
+        border-color: var(--sl-color-primary-400);
     }
 
     .metric-label {
@@ -225,6 +250,10 @@ export const styles: CSSResult = css`
         font-weight: 700;
         color: var(--sl-color-neutral-900);
         line-height: 1.1;
+    }
+
+    :host-context(.sl-theme-dark) .metric-value {
+        color: var(--sl-color-neutral-100);
     }
 
     .metric-sub {
@@ -263,6 +292,11 @@ export const styles: CSSResult = css`
         overflow-x: auto;
         box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
+
+    :host-context(.sl-theme-dark) .movers-strip {
+        background: linear-gradient(135deg, var(--sl-color-neutral-900) 0%, var(--sl-color-neutral-950) 100%);
+        border-color: var(--sl-color-neutral-700);
+    }
     
     .movers-label {
         font-weight: 700;
@@ -277,6 +311,11 @@ export const styles: CSSResult = css`
         align-items: center;
         gap: 0.4rem;
     }
+
+    :host-context(.sl-theme-dark) .movers-label {
+        color: var(--sl-color-neutral-400);
+        border-right-color: var(--sl-color-neutral-700);
+    }
     
     .movers-label::before {
         content: "📊";
@@ -289,9 +328,9 @@ export const styles: CSSResult = css`
         gap: 0.5rem;
         white-space: nowrap;
         padding: 0.3rem 0.6rem;
-        background: var(--sl-color-neutral-0);
+        background: var(--sl-color-neutral-900);
         border-radius: 0.4rem;
-        border: 1px solid var(--sl-color-neutral-200);
+        border: 1px solid var(--sl-color-neutral-700);
         transition: all 0.2s ease;
     }
     
@@ -306,6 +345,10 @@ export const styles: CSSResult = css`
         font-weight: 600;
         font-size: 0.85rem;
     }
+
+    :host-context(.sl-theme-dark) .mover-name {
+        color: var(--sl-color-neutral-300);
+    }
     
     .mover-val {
         font-weight: 700;
@@ -314,6 +357,10 @@ export const styles: CSSResult = css`
         padding: 0.15rem 0.5rem;
         border-radius: 0.375rem;
         background: rgba(0,0,0,0.03);
+    }
+
+    :host-context(.sl-theme-dark) .mover-val {
+        background: rgba(255,255,255,0.05);
     }
 
 	.trend-up { color: var(--sl-color-success-600); background: var(--sl-color-success-50); padding: 0.1rem 0.4rem; border-radius: 99px; display: inline-block; font-weight: 600; }
@@ -328,6 +375,12 @@ export const styles: CSSResult = css`
         background: var(--sl-color-neutral-100);
         border-radius: 6px;
         animation: pulse 1.4s ease-in-out infinite;
+    }
+
+    :host-context(.sl-theme-dark) .wealth-history.loading .skeleton-title,
+    :host-context(.sl-theme-dark) .wealth-history.loading .skeleton-value,
+    :host-context(.sl-theme-dark) .wealth-history.loading .skeleton-sub {
+        background: var(--sl-color-neutral-800);
     }
 
     .wealth-history.loading .skeleton-title { height: 12px; }
@@ -350,6 +403,40 @@ export const styles: CSSResult = css`
 		gap: 0.5rem;
 	}
 
+    .agg-dashboard {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        margin-top: 0.75rem;
+    }
+	.agg-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+	}
+	.agg-title {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		font-weight: 600;
+		color: var(--sl-color-neutral-700);
+	}
+	.agg-controls { display: inline-flex; gap: 8px; align-items: center; }
+	.agg-loading { display: inline-flex; gap: 8px; align-items: center; color: var(--sl-color-neutral-600); }
+	.agg-breakdown { display: flex; flex-direction: column; gap: 0.5rem; }
+	.breakdown-header { display: flex; align-items: center; gap: 0.5rem; font-weight: 600; color: var(--sl-color-neutral-700); }
+	.breakdown-list { display: grid; grid-auto-rows: min-content; row-gap: 6px; }
+	.breakdown-row { display: grid; grid-template-columns: 2fr 0.5fr 1fr; align-items: center; gap: 0.75rem; background: var(--sl-color-neutral-50); border: 1px solid var(--sl-color-neutral-200); border-radius: 6px; padding: 8px 10px; cursor: pointer; text-align: left; }
+	.breakdown-row:hover { background: var(--sl-color-neutral-100); }
+	.b-name { font-weight: 600; color: var(--sl-color-neutral-800); }
+	.b-count { font-variant-numeric: tabular-nums; justify-self: end; }
+	.b-chaos { font-variant-numeric: tabular-nums; font-weight: 700; justify-self: end; }
+	.agg-monitoring { display: inline-flex; gap: 6px; align-items: center; }
+
+	:host-context(.sl-theme-dark) .breakdown-row { background: var(--sl-color-neutral-900); border-color: var(--sl-color-neutral-700); }
+	:host-context(.sl-theme-dark) .breakdown-row:hover { background: var(--sl-color-neutral-800); }
+	:host-context(.sl-theme-dark) .b-name { color: var(--sl-color-neutral-100); }
+
 	@container (min-width: 900px) {
 		.wealth-content-grid {
 			grid-template-columns: 2fr 1fr;
@@ -357,11 +444,11 @@ export const styles: CSSResult = css`
 	}
 
     .chart-container {
-        background: var(--sl-color-neutral-0);
-        border: 1px solid var(--sl-color-neutral-200);
-        border-radius: 0.5rem;
-        padding: 0.75rem;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        background: var(--card-bg);
+        border: var(--card-border);
+        border-radius: var(--card-radius);
+        padding: 1.25rem;
+        box-shadow: var(--glass-shadow);
         position: relative;
     }
     
@@ -392,14 +479,14 @@ export const styles: CSSResult = css`
 	
 	/* Category Breakdown Panel */
 	.category-breakdown-panel {
-		background: var(--sl-color-neutral-0);
-		border: 1px solid var(--sl-color-neutral-200);
-		border-radius: 0.5rem;
-		padding: 0.75rem;
-		box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+		background: var(--card-bg);
+		border: var(--card-border);
+		border-radius: var(--card-radius);
+		padding: 1.25rem;
+		box-shadow: var(--glass-shadow);
 		display: flex;
 		flex-direction: column;
-		gap: 0.5rem;
+		gap: 1rem;
 	}
 	
 	.panel-header {
@@ -618,14 +705,14 @@ export const styles: CSSResult = css`
 	}
 
 	.category-card {
-		background: var(--sl-color-neutral-0);
-		border: 1px solid var(--sl-color-neutral-200);
-		border-radius: 0.5rem;
+		background: var(--card-bg);
+		border: var(--card-border);
+		border-radius: 0.75rem;
 		padding: 0.75rem;
 		display: flex;
 		align-items: center;
 		gap: 0.75rem;
-		transition: border-color 0.2s ease;
+		transition: all 0.2s ease;
 	}
 
 	.category-list.size-large .category-card {
@@ -734,11 +821,12 @@ export const styles: CSSResult = css`
 
     /* Price Changes Section */
     .price-changes-section {
-        background: var(--sl-color-neutral-0);
-        border: 1px solid var(--sl-color-neutral-200);
-        border-radius: 0.75rem;
-        padding: 1rem;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        background: var(--card-bg);
+        border: var(--card-border);
+        border-radius: var(--card-radius);
+        padding: 1.5rem;
+        box-shadow: var(--glass-shadow);
+        content-visibility: auto;
     }
 
     .section-header {
@@ -781,9 +869,9 @@ export const styles: CSSResult = css`
         justify-content: center;
         gap: 0.75rem;
         padding: 1.5rem;
-        background: var(--sl-color-neutral-50);
+        background: var(--card-bg);
         border-radius: 0.5rem;
-        border: 1px dashed var(--sl-color-neutral-300);
+        border: var(--card-border);
         color: var(--sl-color-neutral-600);
         font-size: 0.9rem;
     }
@@ -926,4 +1014,96 @@ export const styles: CSSResult = css`
 
     .positive { color: var(--sl-color-success-600); }
     .negative { color: var(--sl-color-danger-600); }
+
+    .price-sources-table {
+        --price-table-bg: var(--sl-color-neutral-0);
+        --price-table-header-bg: var(--sl-color-neutral-50);
+        --price-table-row-bg: var(--sl-color-neutral-0);
+        --price-table-row-hover-bg: var(--sl-color-neutral-100);
+        --price-table-text-color: var(--sl-color-neutral-900);
+        --price-table-header-text-color: var(--sl-color-neutral-700);
+        --price-table-border-color: var(--sl-color-neutral-200);
+
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+        background: var(--price-table-border-color);
+        border-radius: 0.5rem;
+        overflow-x: auto;
+        border: 1px solid var(--price-table-border-color);
+        margin-top: 1rem;
+    }
+
+    :host-context(.sl-theme-dark) .price-sources-table {
+        --price-table-bg: var(--sl-color-neutral-950);
+        --price-table-header-bg: var(--sl-color-neutral-900);
+        --price-table-row-bg: var(--sl-color-neutral-925);
+        --price-table-row-hover-bg: var(--sl-color-neutral-850);
+        --price-table-text-color: var(--sl-color-neutral-100);
+        --price-table-header-text-color: var(--sl-color-neutral-300);
+        --price-table-border-color: var(--sl-color-neutral-800);
+    }
+
+    .price-sources-table .table-header {
+        display: grid;
+        grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr;
+        background: var(--price-table-header-bg);
+        padding: 0.75rem;
+        font-weight: 600;
+        color: var(--price-table-header-text-color);
+        font-size: 0.8rem;
+        gap: 0.5rem;
+    }
+
+    .price-sources-table .table-row {
+        display: grid;
+        grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr;
+        background: var(--price-table-row-bg);
+        color: var(--price-table-text-color);
+        padding: 0.6rem 0.75rem;
+        font-size: 0.85rem;
+        align-items: center;
+        gap: 0.5rem;
+        transition: background-color 0.15s ease, outline-color 0.15s ease;
+    }
+
+    .price-sources-table .table-row:hover {
+        background: var(--price-table-row-hover-bg);
+    }
+
+    .price-sources-table .table-row:focus-visible {
+        outline: 2px solid var(--sl-color-primary-600);
+        outline-offset: -2px;
+        background: var(--price-table-row-hover-bg);
+    }
+    .price-sources-table .table-row:focus-within {
+        outline: 2px solid var(--sl-color-primary-600);
+        outline-offset: -2px;
+    }
+
+    .price-sources-table sl-badge::part(base) {
+        background: var(--price-table-header-bg);
+        color: var(--price-table-text-color);
+        border: 1px solid var(--price-table-border-color);
+    }
+
+    .price-sources-controls {
+        display: flex;
+        gap: 0.75rem;
+        align-items: center;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+        padding: 1rem;
+        background: var(--card-bg);
+        border-radius: 0.5rem;
+        border: var(--card-border);
+    }
+    :host-context(.sl-theme-dark) .price-sources-controls { background: var(--card-bg); border: var(--card-border); }
+
+    @media (prefers-contrast: more) {
+        .price-sources-table .table-header { color: var(--sl-color-neutral-50); }
+        .price-sources-table .table-row { font-weight: 600; }
+        .price-sources-table .table-row:hover { background: var(--price-table-row-hover-bg); }
+        .price-sources-table .table-row:focus-visible { outline: 3px solid var(--sl-color-primary-600); }
+    }
 `;
