@@ -15,6 +15,7 @@ export const styles: CSSResult = css`
         display: flex;
         align-items: center;
         justify-content: center;
+        gap: 0.4rem;
 
         @media (prefers-color-scheme: dark) {
              background-color: var(--card-bg);
@@ -103,6 +104,7 @@ export const styles: CSSResult = css`
 		padding-right: 1.5rem;
 		display: flex;
 		justify-content: center;
+		gap: 0.4rem;
 		align-items: center;
 		border-radius: 0.5rem;
 		border: 1px solid transparent;
@@ -156,6 +158,29 @@ export const styles: CSSResult = css`
             font-weight: 700;
             font-feature-settings: "tnum";
             opacity: 0.8;
+		}
+
+		.type-icon {
+			font-size: 1rem;
+			color: color-mix(in srgb, var(--badge-color) 60%, var(--sl-color-neutral-600));
+			display: inline-flex;
+			align-items: center;
+		}
+
+		.pin-icon {
+			position: absolute;
+			left: 4px;
+			top: 4px;
+			font-size: 0.9rem;
+			color: color-mix(in srgb, var(--badge-color) 70%, var(--sl-color-neutral-500));
+			opacity: 0.8;
+		}
+
+		.count-badge {
+			position: absolute;
+			bottom: 4px;
+			right: 4px;
+			pointer-events: none;
 		}
 
 		& .name {

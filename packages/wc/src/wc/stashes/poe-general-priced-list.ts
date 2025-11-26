@@ -643,10 +643,18 @@ export class PoeGeneralPricedListElement extends LitElement {
           <sl-icon slot="icon" name="exclamation-triangle"></sl-icon>
           Invalid regex: ${this.filterPending}
         </sl-alert>` : null}
-        ${this.renderHeader(filteredCols)}
-        ${sliced.map((r: any) => html`<div class="row ${this.aggregate ? 'agg' : ''} ${this.ultraCompactMode ? 'ultra' : ''}" data-category="${r.category}" style="grid-template-columns: ${filteredCols.map(c => (this.aggregate ? this.columnWidthsAgg[c] : this.columnWidths[c]) || '1fr').join(' ')}">
-            ${filteredCols.map(c => this.renderCell(r, c))}
-          </div>`)}
+        <div class="table-scroll" role="region" aria-label="Items table">
+          <table class="poe-table" role="table">
+            ${this.renderTableHead(filteredCols)}
+            <tbody>
+              ${sliced.map((r: any, idx: number) => html`
+                <tr class="${this.ultraCompactMode ? 'ultra' : ''}" data-category="${r.category}" aria-rowindex="${idx + 1}">
+                  ${filteredCols.map(c => html`<td class="${this.tdClassFor(c)}">${this.renderCell(r, c)}</td>`)}
+                </tr>
+              `)}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
     <sl-dialog label="Prices JSON" .open=${this.viewPricesOpen} @sl-hide=${() => { this.viewPricesOpen = false; }} style="--width: 800px;">
@@ -695,24 +703,28 @@ export class PoeGeneralPricedListElement extends LitElement {
     return typeof p === 'number' ? p : 0;
   }
 
-  private renderHeader(cols: string[]): TemplateResult {
+  private renderTableHead(cols: string[]): TemplateResult {
     const keys: Record<string, PoeGeneralPricedListElement['sortBy']> = {
       Name: 'name', Stash: 'stash', Tab: 'tab', Quantity: 'qty', Price: 'price', Total: 'total'
     };
     const numeric = new Set(['Gem Level', 'Gem Quality', 'Quantity', 'Price', 'Total']);
-    const widths = this.aggregate ? this.columnWidthsAgg : this.columnWidths;
-    const gridTemplate = cols.map(c => widths[c] || '1fr').join(' ');
-    return html`<div class="header ${this.aggregate ? 'agg' : ''}" style="grid-template-columns: ${gridTemplate}">
-      ${cols.map(c => {
-      const isSorted = this.sortBy === keys[c];
-      const sortIcon = isSorted ? (this.sortDir === 'asc' ? 'arrow-up' : 'arrow-down') : 'arrow-down-up';
-      const alignClass = (c === 'Category' || c === 'Corrupted') ? 'center' : '';
-      return html`<button class="th ${numeric.has(c) ? 'numeric' : ''} ${alignClass} ${isSorted ? 'sorted' : ''}" @click=${() => (keys[c] ? this.onSort(keys[c]) : undefined)}>
-          ${c}
-          ${keys[c] ? html`<sl-icon name="${sortIcon}" class="sort-icon"></sl-icon>` : ''}
-        </button>`;
-    })}
-    </div>`;
+    return html`<thead>
+      <tr>
+        ${cols.map(c => {
+          const isSorted = this.sortBy === keys[c];
+          const sortIcon = isSorted ? (this.sortDir === 'asc' ? 'arrow-up' : 'arrow-down') : 'arrow-down-up';
+          const ariaSort = isSorted ? (this.sortDir === 'asc' ? 'ascending' : 'descending') : 'none';
+          return html`<th scope="col" aria-sort="${ariaSort}" class="${numeric.has(c) ? 'numeric' : ''}" style="width: ${this.colWidthPx(c)}">
+            ${keys[c]
+              ? html`<button class="th ${isSorted ? 'sorted' : ''}" @click=${() => this.onSort(keys[c])}>
+                  ${c}
+                  <sl-icon name="${sortIcon}" class="sort-icon"></sl-icon>
+                </button>`
+              : html`<span class="th">${c}</span>`}
+          </th>`;
+        })}
+      </tr>
+    </thead>`;
   }
 
   private onSort(col: PoeGeneralPricedListElement['sortBy']) {
@@ -723,6 +735,21 @@ export class PoeGeneralPricedListElement extends LitElement {
       this.sortDir = 'asc';
     }
     this.requestUpdate();
+  }
+
+  private tdClassFor(col: string): string {
+    if (['Gem Level', 'Gem Quality', 'Quantity', 'Price', 'Total', 'Tab'].includes(col)) return 'numeric';
+    if (['Category', 'Corrupted'].includes(col)) return 'center';
+    return 'text';
+  }
+
+  private colWidthPx(col: string): string {
+    const v = (this.aggregate ? this.columnWidthsAgg[col] : this.columnWidths[col]) || '';
+    const m = v.match(/(\d+)\s*px/);
+    if (m) return `${m[1]}px`;
+    const mm = v.match(/minmax\((\d+)px/);
+    if (mm) return `${mm[1]}px`;
+    return 'auto';
   }
 
   private getCategoryVariant(category: string): 'primary' | 'success' | 'neutral' | 'warning' | 'danger' {
@@ -836,62 +863,23 @@ export class PoeGeneralPricedListElement extends LitElement {
     .columns-menu-header { font-weight: 600; color: var(--header-text-color, var(--sl-color-neutral-700)); margin-bottom: 4px; }
     .column-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
     .column-actions { display: inline-flex; align-items: center; gap: 6px; }
-    .header, .row { display: grid; align-items: center; padding-left: 8px; padding-right: 8px; }
-    /* Grid columns are set via inline styles based on preferences */
-    .header { 
-      font-weight: 600; 
-      background: var(--table-header-bg);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-      padding: 8px 0; 
-      border-bottom: 1px solid var(--table-border-color); 
-      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3);
-      transition: background-color 0.3s ease;
-    }
-    .header .th { 
-      text-align: left; 
-      background: transparent; 
-      border: none; 
-      color: var(--header-text-color, var(--sl-color-neutral-200)); 
-      cursor: pointer; 
-      padding: 4px 8px; 
-      display: flex;
-      align-items: center;
-      gap: 0.4rem;
-      font-size: 0.85rem;
-      transition: all 0.2s ease;
-      border-radius: 4px;
-      height: 100%;
-    }
-    .header .th:hover {
-      background: var(--table-row-hover-bg);
-      color: var(--sl-color-primary-600);
-    }
-    .header .th:focus-visible { outline: 2px solid var(--sl-color-primary-600); outline-offset: 2px; background: var(--table-row-hover-bg); }
-    .header .th.sorted {
-      color: var(--sl-color-primary-700);
-      font-weight: 700;
-    }
-    .header .th.numeric { 
-      text-align: right; 
-      justify-content: flex-end;
-    }
-    .header .th.center {
-      text-align: center;
-      justify-content: center;
-    }
-    .header .th .sort-icon {
-      font-size: 0.9rem;
-      opacity: 0.5;
-      transition: opacity 0.2s ease;
-    }
-    .header .th.sorted .sort-icon {
-      opacity: 1;
-      color: var(--sl-color-primary-600);
-    }
-    .header .th:hover .sort-icon {
-      opacity: 0.8;
-    }
+    .table-scroll { width: 100%; height: 100%; overflow: auto; }
+    .poe-table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
+    thead { background: var(--table-header-bg); position: sticky; top: 0; z-index: 2; }
+    thead th { position: sticky; top: 0; background: var(--table-header-bg); border-bottom: 1px solid var(--table-border-color); padding: 8px; color: var(--header-text-color, var(--sl-color-neutral-200)); font-weight: 600; text-align: left; }
+    thead th.numeric { text-align: right; }
+    thead th .th { background: transparent; border: none; color: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; }
+    thead th .th:hover { color: var(--sl-color-primary-600); }
+    thead th .th:focus-visible { outline: 2px solid var(--sl-color-primary-600); outline-offset: 2px; }
+    thead th .th.sorted { color: var(--sl-color-primary-700); font-weight: 700; }
+    thead th .sort-icon { font-size: 0.9rem; opacity: 0.7; }
+    tbody tr { background: var(--table-row-bg); color: var(--table-text-color); border-bottom: 1px solid var(--table-border-color); }
+    tbody tr:nth-child(even) { background: var(--table-row-alt-bg); }
+    td { padding: 6px 8px; vertical-align: middle; }
+    td.numeric { text-align: right; }
+    td.center { text-align: center; }
+    tbody tr:hover { background: var(--table-row-hover-bg); }
+    :host-context(.sl-theme-dark) thead th .th:hover { color: var(--sl-color-primary-500); }
     .name { display: flex; align-items: center; gap: 6px; }
     poe-item { --cell-size: 24px; --poe-item-size: 24px; --stack-size-font-size: 9px; }
     .list.ultra poe-item { --cell-size: 20px; --poe-item-size: 20px; --stack-size-font-size: 8px; }

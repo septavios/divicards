@@ -1356,7 +1356,9 @@ pub async fn price_sources_matrix(
                 info!(
                     name = %name,
                     dense = ?dense,
-                    "Currency item with 'Mirror' in name"
+                    has_graph = ?dense_graph.is_some(),
+                    graph_len = ?dense_graph.as_ref().map(|g| g.len()),
+                    "Currency item with 'Mirror' in name - Result"
                 );
             }
 
@@ -1434,16 +1436,25 @@ pub async fn price_sources_matrix(
             }
         }
         for name in names.into_iter() {
-            let dense = lines.iter().find_map(|v| {
-                if v.get("name").and_then(Value::as_str) == Some(&name[..]) {
-                    v.get("chaos")
-                        .and_then(Value::as_f64)
-                        .or_else(|| v.get("chaosValue").and_then(Value::as_f64))
-                        .map(|n| n as f32)
-                } else {
-                    None
-                }
-            });
+            let (dense, dense_graph) = lines
+                .iter()
+                .find_map(|v| {
+                    if v.get("name").and_then(Value::as_str) == Some(&name[..]) {
+                        let price = v
+                            .get("chaos")
+                            .and_then(Value::as_f64)
+                            .or_else(|| v.get("chaosValue").and_then(Value::as_f64))
+                            .map(|n| n as f32);
+                        let graph = v
+                            .get("graph")
+                            .and_then(Value::as_array)
+                            .map(|arr| arr.iter().filter_map(|v| v.as_f64()).collect::<Vec<f64>>());
+                        Some((price, graph))
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or((None, None));
             let cov = currency_fragment_res.as_ref().and_then(|cur| {
                 for v in cur.iter() {
                     let nn = v
@@ -1488,7 +1499,7 @@ pub async fn price_sources_matrix(
                 variant: None,
                 tier: None,
                 dense,
-                dense_graph: None,
+                dense_graph,
                 currency_overview: cov,
                 item_overview: iov,
                 poewatch: pw,
@@ -1550,18 +1561,28 @@ pub async fn price_sources_matrix(
             }
         }
         for name in names.into_iter() {
-            let dense = dense_lines.and_then(|lines| {
-                lines.iter().find_map(|v| {
-                    if v.get("name").and_then(Value::as_str) == Some(&name[..]) {
-                        v.get("chaos")
-                            .and_then(Value::as_f64)
-                            .or_else(|| v.get("chaosValue").and_then(Value::as_f64))
-                            .map(|n| n as f32)
-                    } else {
-                        None
-                    }
+            let (dense, dense_graph) = dense_lines
+                .map(|lines| {
+                    lines
+                        .iter()
+                        .find_map(|v| {
+                            if v.get("name").and_then(Value::as_str) == Some(&name[..]) {
+                                let price = v
+                                    .get("chaos")
+                                    .and_then(Value::as_f64)
+                                    .or_else(|| v.get("chaosValue").and_then(Value::as_f64))
+                                    .map(|n| n as f32);
+                                let graph = v.get("graph").and_then(Value::as_array).map(|arr| {
+                                    arr.iter().filter_map(|v| v.as_f64()).collect::<Vec<f64>>()
+                                });
+                                Some((price, graph))
+                            } else {
+                                None
+                            }
+                        })
+                        .unwrap_or((None, None))
                 })
-            });
+                .unwrap_or((None, None));
             let iov = item_res.and_then(|items| {
                 for v in items.iter() {
                     let nn = v.get("name").and_then(Value::as_str).unwrap_or("");
@@ -1589,7 +1610,7 @@ pub async fn price_sources_matrix(
                 variant: None,
                 tier: None,
                 dense,
-                dense_graph: None,
+                dense_graph,
                 currency_overview: None,
                 item_overview: iov,
                 poewatch: pw,
@@ -1632,18 +1653,27 @@ pub async fn price_sources_matrix(
             }
         }
         for (name, variant) in keys.into_iter() {
-            let dense = dense_lines.iter().find_map(|v| {
-                let nn = v.get("name").and_then(Value::as_str).unwrap_or("");
-                let vv = v.get("variant").and_then(Value::as_str);
-                if nn == name && vv.map(|s| s.to_string()) == variant {
-                    v.get("chaos")
-                        .and_then(Value::as_f64)
-                        .or_else(|| v.get("chaosValue").and_then(Value::as_f64))
-                        .map(|n| n as f32)
-                } else {
-                    None
-                }
-            });
+            let (dense, dense_graph) = dense_lines
+                .iter()
+                .find_map(|v| {
+                    let nn = v.get("name").and_then(Value::as_str).unwrap_or("");
+                    let vv = v.get("variant").and_then(Value::as_str);
+                    if nn == name && vv.map(|s| s.to_string()) == variant {
+                        let price = v
+                            .get("chaos")
+                            .and_then(Value::as_f64)
+                            .or_else(|| v.get("chaosValue").and_then(Value::as_f64))
+                            .map(|n| n as f32);
+                        let graph = v
+                            .get("graph")
+                            .and_then(Value::as_array)
+                            .map(|arr| arr.iter().filter_map(|v| v.as_f64()).collect::<Vec<f64>>());
+                        Some((price, graph))
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or((None, None));
             let iov = item_essence_res.as_ref().and_then(|items| {
                 for v in items.iter() {
                     let nn = v.get("name").and_then(Value::as_str).unwrap_or("");
@@ -1686,7 +1716,7 @@ pub async fn price_sources_matrix(
                 variant,
                 tier: None,
                 dense,
-                dense_graph: None,
+                dense_graph,
                 currency_overview: None,
                 item_overview: iov,
                 poewatch: pw,

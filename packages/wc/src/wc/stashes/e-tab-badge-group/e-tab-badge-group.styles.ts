@@ -117,6 +117,15 @@ export const styles: CSSResult = css`
         padding: 0;
     }
 
+    /* Virtualized list container */
+    .list-virtual {
+        height: 55vh;
+        min-height: 240px;
+        border-radius: 0.5rem;
+        border: var(--card-border);
+        background: var(--card-bg);
+    }
+
     :host([density="cozy"]) .list-compact {
         grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
         gap: 0.5rem;
@@ -220,4 +229,25 @@ export const styles: CSSResult = css`
         gap: 1rem;
         flex-wrap: wrap;
     }
+
+    /* Recent section */
+    .recent-section {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        padding: 0.5rem;
+    }
+    .recent-section .section-title {
+        font-weight: 600;
+        color: var(--sl-color-neutral-700);
+    }
+    :host-context(.sl-theme-dark) .recent-section .section-title { color: var(--sl-color-neutral-300); }
+    .recent-list { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+
+    /* Group sections */
+    .group-sections { display: flex; flex-direction: column; gap: 0.75rem; }
+    .group-section { display: flex; flex-direction: column; gap: 0.5rem; }
+    .group-section .section-title { font-weight: 600; color: var(--sl-color-neutral-700); }
+    :host-context(.sl-theme-dark) .group-section .section-title { color: var(--sl-color-neutral-300); }
+    .group-list { display: flex; flex-wrap: wrap; gap: 0.4rem; }
 `;

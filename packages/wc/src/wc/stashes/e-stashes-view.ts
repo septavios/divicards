@@ -1131,6 +1131,7 @@ export class StashesViewElement extends LitElement {
 			const sorted = Array.isArray(rows) ? [...rows].sort((a, b) => b.timestamp - a.timestamp) : [];
 			this.snapshots = sorted;
 			this.showWealth = this.snapshots.length > 0;
+			console.debug('PriceVarianceActivation', { action: 'snapshots-loaded', count: this.snapshots.length, league: this.league });
 			this.msg = '';
 		} catch (err) {
 			const msg = this.#errorMessage(err);
@@ -1478,7 +1479,7 @@ export class StashesViewElement extends LitElement {
                             size="small" 
                             @click=${this.#togglePriceChanges}
                             variant=${this.showPriceChanges ? 'primary' : 'default'}
-                            disabled=${this.snapshots.length === 0}
+                            ?disabled=${this.snapshots.length === 0}
                         >
                             <sl-icon name="${this.showPriceChanges ? 'eye-slash' : 'eye'}" slot="prefix"></sl-icon>
                             ${this.showPriceChanges ? 'Hide Analysis' : 'Show Analysis'}
@@ -1578,6 +1579,7 @@ export class StashesViewElement extends LitElement {
 
 	async #togglePriceChanges() {
 		this.showPriceChanges = !this.showPriceChanges;
+		console.debug('PriceVarianceActivation', { action: 'toggle', enabled: this.showPriceChanges, snapshots: this.snapshots.length });
 		if (this.showPriceChanges) {
 			await this.#calculatePriceChanges();
 		}
@@ -1591,6 +1593,7 @@ export class StashesViewElement extends LitElement {
 		this.loadingPriceChanges = true;
 		this.priceChangesData = [];
 		try {
+			console.debug('PriceVarianceActivation', { action: 'calculate-start', mode: this.priceChangeMode });
 			const latest = this.snapshots[0];
 			const prev = this.snapshots[1];
 
@@ -1709,6 +1712,7 @@ export class StashesViewElement extends LitElement {
 			this.#handleError('price-variance', err, async () => { await this.#calculatePriceChanges(); }, 'Retry');
 		} finally {
 			this.loadingPriceChanges = false;
+			console.debug('PriceVarianceActivation', { action: 'calculate-end', items: this.priceChangesData.length, mode: this.priceChangeMode });
 		}
 	}
 
