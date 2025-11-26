@@ -38,6 +38,21 @@
   - Default chip background: light `neutral-100`; dark `neutral-800`.
   - Avoid white badge color fallback; use `neutral-500` as default accent.
 
+### Top Movers (Dashboard strip)
+
+- Container (`.movers-strip`):
+  - Light: `background: var(--card-bg)`; `border: var(--card-border)`
+  - Dark: `background: var(--card-bg)`; `border: var(--card-border)` where `--card-bg = #0d1117`, `--card-border = 1px solid #30363d`
+- Label (`.movers-label`):
+  - Light: `color: var(--sl-color-neutral-600)`; `border-right: var(--sl-color-neutral-300)`
+  - Dark: `color: var(--sl-color-neutral-400)`; `border-right: var(--sl-color-neutral-700)`
+- Item chip (`.mover-item`):
+  - Light: `background: var(--sl-color-neutral-50)`; `border: 1px solid var(--sl-color-neutral-300)`
+  - Dark: `background: var(--sl-color-neutral-900)`; `border: 1px solid var(--sl-color-neutral-700)`; text `var(--sl-color-neutral-300)`
+- Value (`.mover-val`):
+  - Light: `background: rgba(0,0,0,0.03)`
+  - Dark: `background: rgba(255,255,255,0.05)`; value colors use `success-600` or `danger-600` for contrast
+
 ## Spacing and Separation
 
 - Add `box-shadow` for sticky headers to prevent overlap illusions.

@@ -104,12 +104,9 @@ export const useAuthStore = defineStore('auth', {
 	},
 	actions: {
 		async init(): Promise<void> {
-			try {
-				const has = await command('poe_has_token');
-				if (has) {
-					setExpiration(EXPIRES_IN_MILLIS);
-				}
-			} catch {}
+			if (this.loggedIn) {
+				setExpiration(EXPIRES_IN_MILLIS);
+			}
 		},
 		async login(): Promise<void> {
 			if (this.loggingIn) {
@@ -125,37 +122,37 @@ export const useAuthStore = defineStore('auth', {
 
 			this.loggingIn = true;
 
-            let biometricOk = false;
-            try {
-                await command('biometric_authenticate');
-                biometricOk = true;
-            } catch (err: any) {
-                const isTauri = typeof err === 'object' && err !== null && 'appErrorFromTauri' in err;
-                if (isTauri && err.kind === 'authError') {
-                    if (err.authError === 'userDenied') {
-                        this.loggingIn = false;
-                        return;
-                    }
-                    // Non-user-denied error: treat as unavailable and proceed with fallback
-                    console.warn('Biometric unavailable, falling back to OAuth:', err);
-                } else {
-                    console.warn('Biometric error, falling back to OAuth:', err);
-                }
-            }
+			let biometricOk = false;
+			try {
+				await command('biometric_authenticate');
+				biometricOk = true;
+			} catch (err: any) {
+				const isTauri = typeof err === 'object' && err !== null && 'appErrorFromTauri' in err;
+				if (isTauri && err.kind === 'authError') {
+					if (err.authError === 'userDenied') {
+						this.loggingIn = false;
+						return;
+					}
+					// Non-user-denied error: treat as unavailable and proceed with fallback
+					console.warn('Biometric unavailable, falling back to OAuth:', err);
+				} else {
+					console.warn('Biometric error, falling back to OAuth:', err);
+				}
+			}
 
 			const unlisten = await addRustListener('auth-url', e => {
 				this.auth_url = e.payload.url;
 			});
 
-            try {
-                // Gate OAuth behind biometric success or explicit fallback
-                this.name = await command('poe_auth');
-                setExpiration(EXPIRES_IN_MILLIS);
-            } finally {
-                this.loggingIn = false;
-                this.auth_url = null;
-                unlisten();
-            }
+			try {
+				// Gate OAuth behind biometric success or explicit fallback
+				this.name = await command('poe_auth');
+				setExpiration(EXPIRES_IN_MILLIS);
+			} finally {
+				this.loggingIn = false;
+				this.auth_url = null;
+				unlisten();
+			}
 		},
 
 		async logout(): Promise<void> {

@@ -19,17 +19,17 @@ export const styles: CSSResult = css`
     }
 
 	/* Compact Header */
-	.header-compact {
-		display: flex;
-		flex-wrap: wrap;
-		justify-content: space-between;
-		align-items: center;
-		gap: 1rem;
-		padding: 0.5rem;
-		background: var(--sl-color-neutral-50);
-		border-bottom: 1px solid var(--sl-color-neutral-200);
-		border-radius: 0.5rem 0.5rem 0 0;
-	}
+    .header-compact {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        padding: 0.5rem;
+        background: var(--sl-color-neutral-50);
+        border-bottom: 1px solid var(--sl-color-neutral-200);
+        border-radius: 0.5rem 0.5rem 0 0;
+    }
 
     :host-context(.sl-theme-dark) .header-compact {
         background: var(--sl-color-neutral-800);

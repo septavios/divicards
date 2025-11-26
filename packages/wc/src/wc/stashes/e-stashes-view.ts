@@ -346,7 +346,7 @@ export class StashesViewElement extends LitElement {
 
 	disconnectedCallback(): void {
 		window.removeEventListener('resize', this.#onWindowResizeBound as any);
-		try { this.#resizeObserver?.disconnect(); } catch {}
+		try { this.#resizeObserver?.disconnect(); } catch { }
 		super.disconnectedCallback();
 	}
 
@@ -497,8 +497,8 @@ export class StashesViewElement extends LitElement {
                 </sl-alert>` : nothing}
             </div>
             ${(this.snapshotsLoading || this.showWealth)
-                ? (this.snapshots.length ? this.#renderWealthDashboard() : this.#renderWealthSkeleton())
-                : nothing}
+				? (this.snapshots.length ? this.#renderWealthDashboard() : this.#renderWealthSkeleton())
+				: nothing}
 			${this.#renderPriceVarianceSection()}
 			${this.multiselect && this.selected_tabs.size > 0 ? this.#renderAggregationDashboard() : nothing}
             ${this.#renderPriceSourcesSection()}
@@ -516,14 +516,14 @@ export class StashesViewElement extends LitElement {
 				? (this.multiselect
 					? this.#renderAggregatedView()
 					: this.stashTabTask.render({
-                        pending: () => {
-                            return html`<e-stash-tab-container
+						pending: () => {
+							return html`<e-stash-tab-container
                                 status="pending"
                                 @e-stash-tab-container__close=${this.#handleTabContainerClose}
                             ></e-stash-tab-container>`;
-                        },
-                        complete: tab =>
-                            html`<e-stash-tab-container
+						},
+						complete: tab =>
+							html`<e-stash-tab-container
                                 .cardsJustExtracted=${this.cardsJustExtracted}
                                 @e-stash-tab-container__close=${this.#handleTabContainerClose}
                                 @e-stash-tab-container__extract-cards=${this.#emitExtractCards}
@@ -562,7 +562,7 @@ export class StashesViewElement extends LitElement {
 			const bars = this.renderRoot?.querySelector<HTMLCanvasElement>('#wealth-bars');
 			if (line) this.#resizeObserver.observe(line);
 			if (bars) this.#resizeObserver.observe(bars);
-		} catch {}
+		} catch { }
 	}
 
 	#scheduleChartsRender(): void {
@@ -625,7 +625,7 @@ export class StashesViewElement extends LitElement {
 					<div class="breakdown-header">
 						<sl-icon name="diagram-3"></sl-icon>
 						Category Breakdown
-						<sl-badge variant="neutral" pill>${cats.reduce((a,c)=>a+c.count,0)} types</sl-badge>
+						<sl-badge variant="neutral" pill>${cats.reduce((a, c) => a + c.count, 0)} types</sl-badge>
 					</div>
 					<div class="breakdown-list">
 						${cats.map(c => html`
@@ -940,8 +940,8 @@ export class StashesViewElement extends LitElement {
 		if (this.selected_tabs.size > 1) {
 			this.multiselect = true;
 			this.opened_tab = null;
-								this.#updateAggregatedMemo();
-								this.#scheduleAggRecalc();
+			this.#updateAggregatedMemo();
+			this.#scheduleAggRecalc();
 		} else if (this.selected_tabs.size === 1) {
 			this.multiselect = false;
 			const id = Array.from(this.selected_tabs.keys())[0];
@@ -1101,7 +1101,7 @@ export class StashesViewElement extends LitElement {
 					if (loaded) this.#setCachedTab(loaded.id, loaded);
 				}
 			}
-            await this.stashLoader.wealthSnapshotCached(this.league, cachedTabs);
+			await this.stashLoader.wealthSnapshotCached(this.league, cachedTabs);
 			this.msg = 'Snapshot captured';
 			this.#toast('success', 'Snapshot captured');
 			await this.#loadSnapshots();
@@ -2122,7 +2122,25 @@ export class StashesViewElement extends LitElement {
 						<div role="gridcell">${row.name}</div>
 						<div role="gridcell"><sl-badge pill>${row.category}</sl-badge></div>
 						<div role="gridcell">${row.variant ?? (row.tier != null ? `T${row.tier}` : '')}</div>
-						<div role="gridcell">${formatPrice(row.dense)}</div>
+						<div role="gridcell">
+						${formatPrice(row.dense)}
+						${(() => {
+						const graph = (row as any).dense_graph;
+						if (!graph || graph.length === 0) return nothing;
+						const width = 40, height = 16, padding = 2;
+						const values = graph.map(Math.abs);
+						const max = Math.max(...values, 1), min = Math.min(...values), range = max - min || 1;
+						const points = graph.map((val: number, i: number) => {
+							const x = padding + (i / (graph.length - 1)) * (width - padding * 2);
+							const normalized = (Math.abs(val) - min) / range;
+							const y = height - padding - (normalized * (height - padding * 2));
+							return `${x},${y}`;
+						}).join(' ');
+						const trend = graph[graph.length - 1];
+						const color = trend > 5 ? '#10b981' : trend < -5 ? '#ef4444' : '#6b7280';
+						return html`<svg width="${width}" height="${height}" style="vertical-align: middle; margin-left: 4px;"><polyline points="${points}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+					})()}
+					</div>
 						${this.priceSourcesShowCurrency ? html`<div role="gridcell">${formatPrice(c)}</div>` : nothing}
 						${this.priceSourcesShowItem ? html`<div role="gridcell">${formatPrice(i)}</div>` : nothing}
 						${this.priceSourcesShowPoewatch ? html`<div role="gridcell">${formatPrice(p)}</div>` : nothing}
@@ -2179,186 +2197,186 @@ export class StashesViewElement extends LitElement {
 
 			if (values.length === 0) return;
 
-		// Calculate chart area with margins for axes
-		const marginLeft = 60;
-		const marginRight = 20;
-		const marginTop = 20;
-		const marginBottom = 40;
-		const chartW = w - marginLeft - marginRight;
-		const chartH = h - marginTop - marginBottom;
+			// Calculate chart area with margins for axes
+			const marginLeft = 60;
+			const marginRight = 20;
+			const marginTop = 20;
+			const marginBottom = 40;
+			const chartW = w - marginLeft - marginRight;
+			const chartH = h - marginTop - marginBottom;
 
-		const max = Math.max(...values);
-		const min = Math.min(...values);
-		const range = max - min || 1;
-		// Add 10% padding top and bottom
-		const yMax = max + (range * 0.1);
-		const yMin = Math.max(0, min - (range * 0.1));
-		const yRange = yMax - yMin;
+			const max = Math.max(...values);
+			const min = Math.min(...values);
+			const range = max - min || 1;
+			// Add 10% padding top and bottom
+			const yMax = max + (range * 0.1);
+			const yMin = Math.max(0, min - (range * 0.1));
+			const yRange = yMax - yMin;
 
-		const n = values.length;
-		const xStep = chartW / Math.max(1, n - 1);
+			const n = values.length;
+			const xStep = chartW / Math.max(1, n - 1);
 
-		// Get data for timestamps
-		let data = [...this.snapshots];
-		if (this.chartRange === 'recent') {
-			data = data.slice(0, 20);
-		}
-
-		// Draw background
-		ctx.fillStyle = 'rgba(255, 255, 255, 0.02)';
-		ctx.fillRect(marginLeft, marginTop, chartW, chartH);
-
-		// Draw grid lines and Y-axis labels
-		ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-		ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-		ctx.font = '11px sans-serif';
-		ctx.lineWidth = 1;
-
-		const numYTicks = 5;
-		for (let i = 0; i <= numYTicks; i++) {
-			const value = yMin + (yRange * i / numYTicks);
-			const y = marginTop + chartH - (i / numYTicks) * chartH;
-
-			// Grid line
-			ctx.beginPath();
-			ctx.moveTo(marginLeft, y);
-			ctx.lineTo(marginLeft + chartW, y);
-			ctx.stroke();
-
-			// Y-axis label
-			ctx.textAlign = 'right';
-			ctx.textBaseline = 'middle';
-			let label;
-			if (yRange < 2) {
-				label = value.toFixed(2);
-			} else if (yRange < 10) {
-				label = value.toFixed(1);
-			} else {
-				label = Math.round(value).toLocaleString();
+			// Get data for timestamps
+			let data = [...this.snapshots];
+			if (this.chartRange === 'recent') {
+				data = data.slice(0, 20);
 			}
-			ctx.fillText(label, marginLeft - 5, y);
-		}
 
-		// Draw X-axis labels (timestamps)
-		ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-		ctx.textAlign = 'center';
-		ctx.textBaseline = 'top';
+			// Draw background
+			ctx.fillStyle = 'rgba(255, 255, 255, 0.02)';
+			ctx.fillRect(marginLeft, marginTop, chartW, chartH);
 
-		const numXTicks = Math.min(5, n);
-		for (let i = 0; i < numXTicks; i++) {
-			const index = Math.floor((n - 1) * i / (numXTicks - 1));
-			const reversedIndex = n - 1 - index;
-			const x = marginLeft + index * xStep;
+			// Draw grid lines and Y-axis labels
+			ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+			ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+			ctx.font = '11px sans-serif';
+			ctx.lineWidth = 1;
 
-			if (data[reversedIndex]) {
-				const date = new Date(data[reversedIndex].timestamp * 1000);
-				const timeLabel = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-				const dateLabel = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+			const numYTicks = 5;
+			for (let i = 0; i <= numYTicks; i++) {
+				const value = yMin + (yRange * i / numYTicks);
+				const y = marginTop + chartH - (i / numYTicks) * chartH;
 
-				// Draw tick mark
+				// Grid line
 				ctx.beginPath();
-				ctx.moveTo(x, marginTop + chartH);
-				ctx.lineTo(x, marginTop + chartH + 5);
+				ctx.moveTo(marginLeft, y);
+				ctx.lineTo(marginLeft + chartW, y);
 				ctx.stroke();
 
-				ctx.fillText(timeLabel, x, marginTop + chartH + 8);
-				ctx.font = '9px sans-serif';
-				ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-				ctx.fillText(dateLabel, x, marginTop + chartH + 22);
-				ctx.font = '11px sans-serif';
-				ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+				// Y-axis label
+				ctx.textAlign = 'right';
+				ctx.textBaseline = 'middle';
+				let label;
+				if (yRange < 2) {
+					label = value.toFixed(2);
+				} else if (yRange < 10) {
+					label = value.toFixed(1);
+				} else {
+					label = Math.round(value).toLocaleString();
+				}
+				ctx.fillText(label, marginLeft - 5, y);
 			}
-		}
 
-		// Draw axis labels
-		ctx.save();
-		ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-		ctx.font = 'bold 12px sans-serif';
+			// Draw X-axis labels (timestamps)
+			ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+			ctx.textAlign = 'center';
+			ctx.textBaseline = 'top';
 
-		// Y-axis label (rotated)
-		ctx.translate(15, marginTop + chartH / 2);
-		ctx.rotate(-Math.PI / 2);
-		ctx.textAlign = 'center';
-		ctx.fillText(this.chartMode === 'divine' ? 'Divine Orbs' : 'Chaos Orbs', 0, 0);
-		ctx.restore();
+			const numXTicks = Math.min(5, n);
+			for (let i = 0; i < numXTicks; i++) {
+				const index = Math.floor((n - 1) * i / (numXTicks - 1));
+				const reversedIndex = n - 1 - index;
+				const x = marginLeft + index * xStep;
 
-		// X-axis label
+				if (data[reversedIndex]) {
+					const date = new Date(data[reversedIndex].timestamp * 1000);
+					const timeLabel = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+					const dateLabel = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+
+					// Draw tick mark
+					ctx.beginPath();
+					ctx.moveTo(x, marginTop + chartH);
+					ctx.lineTo(x, marginTop + chartH + 5);
+					ctx.stroke();
+
+					ctx.fillText(timeLabel, x, marginTop + chartH + 8);
+					ctx.font = '9px sans-serif';
+					ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+					ctx.fillText(dateLabel, x, marginTop + chartH + 22);
+					ctx.font = '11px sans-serif';
+					ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+				}
+			}
+
+			// Draw axis labels
+			ctx.save();
+			ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+			ctx.font = 'bold 12px sans-serif';
+
+			// Y-axis label (rotated)
+			ctx.translate(15, marginTop + chartH / 2);
+			ctx.rotate(-Math.PI / 2);
+			ctx.textAlign = 'center';
+			ctx.fillText(this.chartMode === 'divine' ? 'Divine Orbs' : 'Chaos Orbs', 0, 0);
+			ctx.restore();
+
+			// X-axis label
 			ctx.fillText('Time', marginLeft + chartW / 2, h - 5);
 
-		// Gradient fill under line
-		const gradient = ctx.createLinearGradient(0, marginTop, 0, marginTop + chartH);
-		if (this.chartMode === 'divine') {
-			gradient.addColorStop(0, 'rgba(234, 179, 8, 0.3)'); // Yellow/Gold
-			gradient.addColorStop(1, 'rgba(234, 179, 8, 0)');
-		} else {
-			gradient.addColorStop(0, 'rgba(99, 102, 241, 0.3)'); // Indigo
-			gradient.addColorStop(1, 'rgba(99, 102, 241, 0)');
-		}
-
-		ctx.beginPath();
-		ctx.moveTo(marginLeft, marginTop + chartH);
-		for (let i = 0; i < n; i++) {
-			const x = marginLeft + i * xStep;
-			const v = values[n - 1 - i]; // Reverse to show oldest to newest left-to-right
-			const y = marginTop + chartH - ((v - yMin) / yRange) * chartH;
-			ctx.lineTo(x, y);
-		}
-		ctx.lineTo(marginLeft + (n - 1) * xStep, marginTop + chartH);
-		ctx.closePath();
-		ctx.fillStyle = gradient;
-		ctx.fill();
-
-		// Draw line
-		ctx.strokeStyle = this.chartMode === 'divine'
-			? (getComputedStyle(this).getPropertyValue('--sl-color-warning-500') || '#eab308')
-			: (getComputedStyle(this).getPropertyValue('--sl-color-primary-600') || '#4f46e5');
-		ctx.lineWidth = 3;
-		ctx.lineCap = 'round';
-		ctx.lineJoin = 'round';
-		ctx.beginPath();
-		for (let i = 0; i < n; i++) {
-			const x = marginLeft + i * xStep;
-			const v = values[n - 1 - i];
-			const y = marginTop + chartH - ((v - yMin) / yRange) * chartH;
-			if (i === 0) ctx.moveTo(x, y);
-			else ctx.lineTo(x, y);
-		}
-		ctx.stroke();
-
-		// Draw points
-		ctx.fillStyle = '#fff';
-		for (let i = 0; i < n; i++) {
-			const x = marginLeft + i * xStep;
-			const v = values[n - 1 - i];
-			const y = marginTop + chartH - ((v - yMin) / yRange) * chartH;
+			// Gradient fill under line
+			const gradient = ctx.createLinearGradient(0, marginTop, 0, marginTop + chartH);
+			if (this.chartMode === 'divine') {
+				gradient.addColorStop(0, 'rgba(234, 179, 8, 0.3)'); // Yellow/Gold
+				gradient.addColorStop(1, 'rgba(234, 179, 8, 0)');
+			} else {
+				gradient.addColorStop(0, 'rgba(99, 102, 241, 0.3)'); // Indigo
+				gradient.addColorStop(1, 'rgba(99, 102, 241, 0)');
+			}
 
 			ctx.beginPath();
-			ctx.arc(x, y, 4, 0, Math.PI * 2);
+			ctx.moveTo(marginLeft, marginTop + chartH);
+			for (let i = 0; i < n; i++) {
+				const x = marginLeft + i * xStep;
+				const v = values[n - 1 - i]; // Reverse to show oldest to newest left-to-right
+				const y = marginTop + chartH - ((v - yMin) / yRange) * chartH;
+				ctx.lineTo(x, y);
+			}
+			ctx.lineTo(marginLeft + (n - 1) * xStep, marginTop + chartH);
+			ctx.closePath();
+			ctx.fillStyle = gradient;
 			ctx.fill();
+
+			// Draw line
+			ctx.strokeStyle = this.chartMode === 'divine'
+				? (getComputedStyle(this).getPropertyValue('--sl-color-warning-500') || '#eab308')
+				: (getComputedStyle(this).getPropertyValue('--sl-color-primary-600') || '#4f46e5');
+			ctx.lineWidth = 3;
+			ctx.lineCap = 'round';
+			ctx.lineJoin = 'round';
+			ctx.beginPath();
+			for (let i = 0; i < n; i++) {
+				const x = marginLeft + i * xStep;
+				const v = values[n - 1 - i];
+				const y = marginTop + chartH - ((v - yMin) / yRange) * chartH;
+				if (i === 0) ctx.moveTo(x, y);
+				else ctx.lineTo(x, y);
+			}
 			ctx.stroke();
 
-			// Draw active point highlight
-			if (i === activeIndex) {
-				ctx.save();
-				ctx.strokeStyle = this.chartMode === 'divine' ? 'rgba(234, 179, 8, 0.5)' : 'rgba(99, 102, 241, 0.5)';
-				ctx.lineWidth = 10;
-				ctx.beginPath();
-				ctx.arc(x, y, 8, 0, Math.PI * 2);
-				ctx.stroke();
-				ctx.restore();
+			// Draw points
+			ctx.fillStyle = '#fff';
+			for (let i = 0; i < n; i++) {
+				const x = marginLeft + i * xStep;
+				const v = values[n - 1 - i];
+				const y = marginTop + chartH - ((v - yMin) / yRange) * chartH;
 
-				// Draw crosshair line
-				ctx.save();
-				ctx.strokeStyle = getComputedStyle(this).getPropertyValue('--sl-color-neutral-400') || '#9ca3af';
-				ctx.lineWidth = 1;
-				ctx.setLineDash([5, 5]);
 				ctx.beginPath();
-				ctx.moveTo(x, marginTop);
-				ctx.lineTo(x, marginTop + chartH);
+				ctx.arc(x, y, 4, 0, Math.PI * 2);
+				ctx.fill();
 				ctx.stroke();
-				ctx.restore();
-		}
-		}
+
+				// Draw active point highlight
+				if (i === activeIndex) {
+					ctx.save();
+					ctx.strokeStyle = this.chartMode === 'divine' ? 'rgba(234, 179, 8, 0.5)' : 'rgba(99, 102, 241, 0.5)';
+					ctx.lineWidth = 10;
+					ctx.beginPath();
+					ctx.arc(x, y, 8, 0, Math.PI * 2);
+					ctx.stroke();
+					ctx.restore();
+
+					// Draw crosshair line
+					ctx.save();
+					ctx.strokeStyle = getComputedStyle(this).getPropertyValue('--sl-color-neutral-400') || '#9ca3af';
+					ctx.lineWidth = 1;
+					ctx.setLineDash([5, 5]);
+					ctx.beginPath();
+					ctx.moveTo(x, marginTop);
+					ctx.lineTo(x, marginTop + chartH);
+					ctx.stroke();
+					ctx.restore();
+				}
+			}
 		}
 		catch (err) { }
 	}
@@ -2456,49 +2474,49 @@ export class StashesViewElement extends LitElement {
 				return;
 			}
 
-		const max = Math.max(1, ...entries.map(e => e.value));
-		const rowH = Math.min(40, h / entries.length);
+			const max = Math.max(1, ...entries.map(e => e.value));
+			const rowH = Math.min(40, h / entries.length);
 
-		// Colors for bars
-		const colors = [
-			'#6366f1', // Indigo
-			'#8b5cf6', // Violet
-			'#ec4899', // Pink
-			'#f43f5e', // Rose
-			'#f97316', // Orange
-			'#eab308', // Yellow
-			'#22c55e', // Green
-			'#06b6d4', // Cyan
-			'#3b82f6', // Blue
-			'#64748b', // Slate
-		];
+			// Colors for bars
+			const colors = [
+				'#6366f1', // Indigo
+				'#8b5cf6', // Violet
+				'#ec4899', // Pink
+				'#f43f5e', // Rose
+				'#f97316', // Orange
+				'#eab308', // Yellow
+				'#22c55e', // Green
+				'#06b6d4', // Cyan
+				'#3b82f6', // Blue
+				'#64748b', // Slate
+			];
 
-		for (let i = 0; i < entries.length; i++) {
-			const e = entries[i];
-			const y = i * rowH + 8;
-			const barMaxW = w - 120; // Reserve space for text
-			const barW = Math.max(2, (e.value / max) * barMaxW);
+			for (let i = 0; i < entries.length; i++) {
+				const e = entries[i];
+				const y = i * rowH + 8;
+				const barMaxW = w - 120; // Reserve space for text
+				const barW = Math.max(2, (e.value / max) * barMaxW);
 
-			ctx.fillStyle = 'rgba(0,0,0,0.03)';
-			ctx.fillRect(100, y, barMaxW, rowH - 12);
+				ctx.fillStyle = 'rgba(0,0,0,0.03)';
+				ctx.fillRect(100, y, barMaxW, rowH - 12);
 
-			ctx.fillStyle = colors[i % colors.length];
-			ctx.fillRect(100, y, barW, rowH - 12);
+				ctx.fillStyle = colors[i % colors.length];
+				ctx.fillRect(100, y, barW, rowH - 12);
 
-			// Label
-			ctx.fillStyle = getComputedStyle(this).getPropertyValue('--sl-color-neutral-700') || '#374151';
-			ctx.font = '600 13px system-ui';
-			ctx.textAlign = 'right';
-			ctx.textBaseline = 'middle';
-			ctx.fillText(e.name, 90, y + (rowH - 12) / 2);
+				// Label
+				ctx.fillStyle = getComputedStyle(this).getPropertyValue('--sl-color-neutral-700') || '#374151';
+				ctx.font = '600 13px system-ui';
+				ctx.textAlign = 'right';
+				ctx.textBaseline = 'middle';
+				ctx.fillText(e.name, 90, y + (rowH - 12) / 2);
 
-			// Value
-			ctx.textAlign = 'left';
-			ctx.font = '13px system-ui';
-			ctx.fillText(`${Math.round(e.value).toLocaleString()}`, 100 + barW + 8, y + (rowH - 12) / 2);
-		}
-        } catch (err) { }
-    }
+				// Value
+				ctx.textAlign = 'left';
+				ctx.font = '13px system-ui';
+				ctx.fillText(`${Math.round(e.value).toLocaleString()}`, 100 + barW + 8, y + (rowH - 12) / 2);
+			}
+		} catch (err) { }
+	}
 
 	async #loadSingleTabContent<T>(
 		kind: 'general-tab' | 'sample',
@@ -2577,7 +2595,7 @@ function formatChaosAmount(amount: number): string {
 	return `${Math.round(amount)}c`;
 }
 declare module 'vue' {
-    interface GlobalComponents {
-        'e-stashes-view': DefineComponent<StashesViewProps & VueEventHandlers<Events>>;
-    }
+	interface GlobalComponents {
+		'e-stashes-view': DefineComponent<StashesViewProps & VueEventHandlers<Events>>;
+	}
 }

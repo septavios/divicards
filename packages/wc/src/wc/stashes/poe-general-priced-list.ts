@@ -808,14 +808,14 @@ export class PoeGeneralPricedListElement extends LitElement {
       color: var(--table-text-color);
     }
     :host-context(.sl-theme-dark) .list { 
-      --table-bg: #101214; 
-      --table-header-bg: #14171a; 
-      --table-row-bg: #15181b; 
-      --table-row-alt-bg: #1a1d21;
-      --table-row-hover-bg: #1f2328; 
-      --table-text-color: var(--sl-color-neutral-100);
-      --table-border-color: var(--sl-color-neutral-700);
-      --header-text-color: var(--sl-color-neutral-200);
+      --table-bg: #0d1117; 
+      --table-header-bg: #161b22; 
+      --table-row-bg: #0d1117; 
+      --table-row-alt-bg: #161b22;
+      --table-row-hover-bg: #21262d; 
+      --table-text-color: #c9d1d9;
+      --table-border-color: #30363d;
+      --header-text-color: #f0f6fc;
       background: var(--table-bg);
       color: var(--table-text-color);
     }

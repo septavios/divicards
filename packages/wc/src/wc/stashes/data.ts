@@ -83,7 +83,33 @@ export class MockStashLoader implements IStashLoader {
         return { timestamp: now, league, total_chaos: 0, total_divines: null, by_category: {} };
     }
     async listSnapshots(_league: League, _limit?: number): Promise<Array<{ timestamp: number; league: string; total_chaos: number; total_divines: number | null; by_category: Record<string, { chaos: number }> }>> {
-        return [];
+        const now = Math.floor(Date.now() / 1000);
+        return [
+            {
+                timestamp: now - 2 * 60 * 60,
+                league,
+                total_chaos: 15000,
+                total_divines: 50,
+                by_category: {
+                    'Divination Cards': { chaos: 6000 },
+                    Currency: { chaos: 3500 },
+                    Fragments: { chaos: 2500 },
+                    Maps: { chaos: 2000 }
+                }
+            },
+            {
+                timestamp: now,
+                league,
+                total_chaos: 18350,
+                total_divines: 61,
+                by_category: {
+                    'Divination Cards': { chaos: 8000 },
+                    Currency: { chaos: 3800 },
+                    Fragments: { chaos: 3050 },
+                    Maps: { chaos: 2500 }
+                }
+            }
+        ];
     }
     async wealthSnapshotCached(_league: League, _tabs: Array<TabWithItems>): Promise<{ timestamp: number; league: string; total_chaos: number; total_divines: number | null; by_category: Record<string, { chaos: number }> }> {
         const now = Math.floor(Date.now() / 1000);

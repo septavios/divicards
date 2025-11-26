@@ -13,11 +13,11 @@ export const styles: CSSResult = css`
 	}
 
     :host-context(.sl-theme-dark) {
-        --glass-bg: rgba(30, 30, 35, 0.85);
-        --glass-border: 1px solid rgba(255, 255, 255, 0.08);
-        --glass-shadow: 0 4px 24px -1px rgba(0, 0, 0, 0.4);
-        --card-bg: var(--sl-color-neutral-800);
-        --card-border: 1px solid var(--sl-color-neutral-700);
+        --glass-bg: rgba(13, 17, 23, 0.95);
+        --glass-border: 1px solid #30363d;
+        --glass-shadow: 0 4px 24px -1px rgba(0, 0, 0, 0.8);
+        --card-bg: #0d1117;
+        --card-border: 1px solid #30363d;
     }
 
 	.main-stashes-component {
@@ -206,15 +206,15 @@ export const styles: CSSResult = css`
 	/* New Compact Metrics Grid */
 	.metrics-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-        gap: 0.5rem;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 0.4rem;
     }
 
     .metric-card {
         background: var(--card-bg);
         border: var(--card-border);
-        border-radius: var(--card-radius);
-        padding: 1rem;
+        border-radius: 0.5rem;
+        padding: 0.5rem 0.65rem;
         box-shadow: var(--glass-shadow);
         display: flex;
         flex-direction: column;
@@ -229,15 +229,15 @@ export const styles: CSSResult = css`
     }
 
     .metric-label {
-        font-size: 0.7rem;
+        font-size: 0.65rem;
         text-transform: uppercase;
         letter-spacing: 0.05em;
         color: var(--sl-color-neutral-500);
         font-weight: 600;
-        margin-bottom: 0.35rem;
+        margin-bottom: 0.2rem;
         display: flex;
         align-items: center;
-        gap: 0.3rem;
+        gap: 0.25rem;
     }
     
     .metric-label sl-icon {
@@ -246,7 +246,7 @@ export const styles: CSSResult = css`
     }
 
     .metric-value {
-        font-size: 1.35rem;
+        font-size: 1.1rem;
         font-weight: 700;
         color: var(--sl-color-neutral-900);
         line-height: 1.1;
@@ -257,12 +257,12 @@ export const styles: CSSResult = css`
     }
 
     .metric-sub {
-        font-size: 0.75rem;
+        font-size: 0.7rem;
         color: var(--sl-color-neutral-500);
-        margin-top: 0.35rem;
+        margin-top: 0.2rem;
         display: flex;
         align-items: center;
-        gap: 0.25rem;
+        gap: 0.2rem;
     }
 
     .metric-timestamp {
@@ -284,18 +284,18 @@ export const styles: CSSResult = css`
         display: flex;
         align-items: center;
         gap: 1rem;
-        background: linear-gradient(135deg, var(--sl-color-neutral-0) 0%, var(--sl-color-neutral-50) 100%);
-        border: 1px solid var(--sl-color-neutral-200);
+        background: var(--card-bg);
+        border: var(--card-border);
         border-radius: 0.5rem;
         padding: 0.65rem 0.85rem;
         font-size: 0.9rem;
         overflow-x: auto;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        box-shadow: var(--glass-shadow);
     }
 
     :host-context(.sl-theme-dark) .movers-strip {
-        background: linear-gradient(135deg, var(--sl-color-neutral-900) 0%, var(--sl-color-neutral-950) 100%);
-        border-color: var(--sl-color-neutral-700);
+        background: var(--card-bg);
+        border: var(--card-border);
     }
     
     .movers-label {
@@ -327,17 +327,23 @@ export const styles: CSSResult = css`
         align-items: center;
         gap: 0.5rem;
         white-space: nowrap;
-        padding: 0.3rem 0.6rem;
-        background: var(--sl-color-neutral-900);
-        border-radius: 0.4rem;
-        border: 1px solid var(--sl-color-neutral-700);
+        padding: 0.4rem 0.7rem;
+        background: var(--card-bg);
+        border-radius: 0.5rem;
+        border: var(--card-border);
+        box-shadow: var(--glass-shadow);
         transition: all 0.2s ease;
+    }
+
+    :host-context(.sl-theme-dark) .mover-item {
+        background: var(--card-bg);
+        border: var(--card-border);
     }
     
     .mover-item:hover {
         transform: translateY(-1px);
-        box-shadow: 0 2px 4px rgba(0,0,0,0.08);
-        border-color: var(--sl-color-primary-300);
+        box-shadow: 0 4px 10px -2px rgba(0,0,0,0.2);
+        border-color: var(--sl-color-primary-400);
     }
     
     .mover-name {
@@ -356,11 +362,11 @@ export const styles: CSSResult = css`
         font-size: 0.95rem;
         padding: 0.15rem 0.5rem;
         border-radius: 0.375rem;
-        background: rgba(0,0,0,0.03);
+        background: transparent;
     }
 
     :host-context(.sl-theme-dark) .mover-val {
-        background: rgba(255,255,255,0.05);
+        background: transparent;
     }
 
 	.trend-up { color: var(--sl-color-success-600); background: var(--sl-color-success-50); padding: 0.1rem 0.4rem; border-radius: 99px; display: inline-block; font-weight: 600; }
@@ -389,8 +395,8 @@ export const styles: CSSResult = css`
 
     .wealth-history.loading .skeleton-chart {
         height: 280px;
-        background: var(--sl-color-neutral-50);
-        border: 1px solid var(--sl-color-neutral-200);
+        background: var(--card-bg);
+        border: var(--card-border);
         border-radius: 0.75rem;
     }
 
@@ -406,8 +412,8 @@ export const styles: CSSResult = css`
     .agg-dashboard {
         display: flex;
         flex-direction: column;
-        gap: 0.75rem;
-        margin-top: 0.75rem;
+        gap: 0.4rem;
+        margin-top: 0.5rem;
     }
 	.agg-header {
 		display: flex;
@@ -423,14 +429,14 @@ export const styles: CSSResult = css`
 	}
 	.agg-controls { display: inline-flex; gap: 8px; align-items: center; }
 	.agg-loading { display: inline-flex; gap: 8px; align-items: center; color: var(--sl-color-neutral-600); }
-	.agg-breakdown { display: flex; flex-direction: column; gap: 0.5rem; }
-	.breakdown-header { display: flex; align-items: center; gap: 0.5rem; font-weight: 600; color: var(--sl-color-neutral-700); }
-	.breakdown-list { display: grid; grid-auto-rows: min-content; row-gap: 6px; }
-	.breakdown-row { display: grid; grid-template-columns: 2fr 0.5fr 1fr; align-items: center; gap: 0.75rem; background: var(--sl-color-neutral-50); border: 1px solid var(--sl-color-neutral-200); border-radius: 6px; padding: 8px 10px; cursor: pointer; text-align: left; }
+	.agg-breakdown { display: flex; flex-direction: column; gap: 0.35rem; }
+	.breakdown-header { display: flex; align-items: center; gap: 0.4rem; font-weight: 600; color: var(--sl-color-neutral-700); font-size: 0.8rem; }
+	.breakdown-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); grid-auto-rows: min-content; gap: 4px; }
+	.breakdown-row { display: grid; grid-template-columns: 2fr 0.5fr 1fr; align-items: center; gap: 0.5rem; background: var(--card-bg); border: var(--card-border); border-radius: 4px; padding: 4px 8px; cursor: pointer; text-align: left; font-size: 0.8rem; }
 	.breakdown-row:hover { background: var(--sl-color-neutral-100); }
-	.b-name { font-weight: 600; color: var(--sl-color-neutral-800); }
-	.b-count { font-variant-numeric: tabular-nums; justify-self: end; }
-	.b-chaos { font-variant-numeric: tabular-nums; font-weight: 700; justify-self: end; }
+	.b-name { font-weight: 600; color: var(--sl-color-neutral-800); font-size: 0.75rem; }
+	.b-count { font-variant-numeric: tabular-nums; justify-self: end; font-size: 0.75rem; }
+	.b-chaos { font-variant-numeric: tabular-nums; font-weight: 700; justify-self: end; font-size: 0.75rem; }
 	.agg-monitoring { display: inline-flex; gap: 6px; align-items: center; }
 
 	:host-context(.sl-theme-dark) .breakdown-row { background: var(--sl-color-neutral-900); border-color: var(--sl-color-neutral-700); }
@@ -505,6 +511,35 @@ export const styles: CSSResult = css`
 		font-size: 1rem;
 	}
 	
+	.price-changes-section {
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+		margin-top: 0.75rem;
+	}
+	
+	.snapshot-selector {
+		background: var(--card-bg);
+		border: var(--card-border);
+		border-radius: 0.5rem;
+		padding: 0.75rem;
+		margin-bottom: 0.5rem;
+	}
+	
+	.selector-controls {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		flex-wrap: wrap;
+	}
+	
+	.snapshot-selector sl-select {
+		flex-shrink: 0;
+	}
+	
+	.snapshot-selector sl-icon[name="arrow-right"] {
+		flex-shrink: 0;
+	}
 	/* Compact Category List */
 	.category-compact-list {
 		display: flex;
@@ -559,13 +594,13 @@ export const styles: CSSResult = css`
 		font-size: 0.7rem;
 		font-weight: 600;
 		color: var(--sl-color-neutral-700);
-		text-shadow: 0 0 4px rgba(255,255,255,0.8);
+		text-shadow: none;
 	}
 
     .chart-tooltip {
         position: absolute;
         background: rgba(20, 20, 25, 0.95);
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        border: var(--card-border);
         border-radius: 0.75rem;
         padding: 1rem;
         box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
@@ -574,7 +609,7 @@ export const styles: CSSResult = css`
         font-size: 0.85rem;
         min-width: 220px;
         backdrop-filter: blur(12px);
-        color: #fff;
+        color: var(--sl-color-neutral-100);
         display: flex;
         flex-direction: column;
         gap: 0.75rem;
@@ -585,7 +620,7 @@ export const styles: CSSResult = css`
         justify-content: space-between;
         align-items: center;
         padding-bottom: 0.5rem;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        border-bottom: var(--card-border);
         margin-bottom: 0.25rem;
     }
 
@@ -614,7 +649,7 @@ export const styles: CSSResult = css`
         font-size: 1.5rem;
         font-weight: 700;
         line-height: 1.1;
-        background: linear-gradient(to right, #fff, #ccc);
+        background: linear-gradient(to right, var(--sl-color-neutral-100), var(--sl-color-neutral-300));
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
     }
@@ -630,7 +665,7 @@ export const styles: CSSResult = css`
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 0.5rem;
-        background: rgba(255, 255, 255, 0.03);
+        background: rgba(0, 0, 0, 0.15);
         padding: 0.5rem;
         border-radius: 0.5rem;
     }
@@ -673,7 +708,7 @@ export const styles: CSSResult = css`
 
     .cat-bar-bg {
         height: 3px;
-        background: rgba(255, 255, 255, 0.1);
+        background: rgba(156, 163, 175, 0.3);
         border-radius: 2px;
         overflow: hidden;
     }
@@ -893,10 +928,10 @@ export const styles: CSSResult = css`
     }
 
     .price-stat {
-        background: var(--sl-color-neutral-50);
+        background: var(--card-bg);
         padding: 0.75rem;
         border-radius: 0.5rem;
-        border: 1px solid var(--sl-color-neutral-200);
+        border: var(--card-border);
     }
 
     .price-stat.positive {
@@ -970,11 +1005,11 @@ export const styles: CSSResult = css`
     .price-table-header {
         display: grid;
         grid-template-columns: 2fr 0.5fr 1fr 1fr 1fr 1fr;
-        background: var(--sl-color-neutral-50);
+        background: var(--card-bg);
         padding: 0.5rem;
         font-weight: 600;
         color: var(--sl-color-neutral-600);
-        border-bottom: 1px solid var(--sl-color-neutral-200);
+        border-bottom: var(--card-border);
         gap: 0.5rem;
     }
 
@@ -1101,7 +1136,7 @@ export const styles: CSSResult = css`
     :host-context(.sl-theme-dark) .price-sources-controls { background: var(--card-bg); border: var(--card-border); }
 
     @media (prefers-contrast: more) {
-        .price-sources-table .table-header { color: var(--sl-color-neutral-50); }
+        .price-sources-table .table-header { color: var(--price-table-header-text-color); }
         .price-sources-table .table-row { font-weight: 600; }
         .price-sources-table .table-row:hover { background: var(--price-table-row-hover-bg); }
         .price-sources-table .table-row:focus-visible { outline: 3px solid var(--sl-color-primary-600); }

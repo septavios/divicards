@@ -1079,6 +1079,7 @@ pub struct PriceSourceRow {
     pub variant: Option<String>,
     pub tier: Option<u8>,
     pub dense: Option<f32>,
+    pub dense_graph: Option<Vec<f64>>,
     pub currency_overview: Option<f32>,
     pub item_overview: Option<f32>,
     pub poewatch: Option<f32>,
@@ -1157,13 +1158,36 @@ pub async fn price_sources_matrix(
     let mut dense_by_cat: std::collections::HashMap<String, Vec<Value>> =
         std::collections::HashMap::new();
     if let Some(raw) = dense_raw_res {
+        // Debug: Log the top-level keys in the Dense API response
+        if let Some(obj) = raw.as_object() {
+            let keys: Vec<&String> = obj.keys().collect();
+            info!(
+                keys = ?keys,
+                "Dense API response top-level keys"
+            );
+        }
+
         // Handle new Ninja API structure (currencyOverviews + itemOverviews)
         let mut process_overviews = |key: &str| {
             if let Some(arr) = raw.get(key).and_then(Value::as_array) {
+                info!(
+                    key = %key,
+                    count = arr.len(),
+                    "Found overview array in Dense API"
+                );
                 for cat in arr.iter() {
                     if let Some(t) = cat.get("type").and_then(Value::as_str) {
                         if let Some(lines) = cat.get("lines").and_then(Value::as_array) {
-                            dense_by_cat.insert(t.to_string(), lines.clone());
+                            info!(
+                                category = %t,
+                                lines_count = lines.len(),
+                                "Dense category found"
+                            );
+                            // Merge with existing category instead of replacing
+                            dense_by_cat
+                                .entry(t.to_string())
+                                .and_modify(|existing| existing.extend(lines.clone()))
+                                .or_insert_with(|| lines.clone());
                         }
                     }
                 }
@@ -1175,6 +1199,7 @@ pub async fn price_sources_matrix(
 
         // Fallback for older structure or if it changes back
         if let Some(arr) = raw.get("overviews").and_then(Value::as_array) {
+            info!(count = arr.len(), "Found 'overviews' array in Dense API");
             for cat in arr.iter() {
                 if let Some(t) = cat.get("type").and_then(Value::as_str) {
                     if let Some(lines) = cat.get("lines").and_then(Value::as_array) {
@@ -1183,6 +1208,7 @@ pub async fn price_sources_matrix(
                 }
             }
         } else if raw.is_array() {
+            info!("Dense API response is a direct array");
             if let Some(arr) = raw.as_array() {
                 for cat in arr.iter() {
                     if let Some(t) = cat.get("type").and_then(Value::as_str) {
@@ -1193,6 +1219,14 @@ pub async fn price_sources_matrix(
                 }
             }
         }
+
+        // Debug: Log what categories were extracted
+        let categories: Vec<&String> = dense_by_cat.keys().collect();
+        info!(
+            categories = ?categories,
+            total_categories = dense_by_cat.len(),
+            "Dense categories extracted"
+        );
     }
 
     let mut rows: Vec<PriceSourceRow> = Vec::new();
@@ -1258,6 +1292,25 @@ pub async fn price_sources_matrix(
     let low_conf = include_low_confidence.unwrap_or(false);
     let poewatch_currency = poewatch_items_cached(&league, "currency", low_conf).await;
     if let Some(lines) = dense_by_cat.get("Currency") {
+        // Debug: Log all Dense Currency items to see what's available
+        info!(count = lines.len(), "Dense Currency items available");
+        for v in lines.iter() {
+            if let Some(name) = v.get("name").and_then(Value::as_str) {
+                if name.contains("Mirror") {
+                    let chaos = v
+                        .get("chaos")
+                        .and_then(Value::as_f64)
+                        .or_else(|| v.get("chaosValue").and_then(Value::as_f64));
+                    info!(
+                        name = %name,
+                        chaos = ?chaos,
+                        raw_item = ?v,
+                        "Dense Currency item with 'Mirror' in name (from Dense API)"
+                    );
+                }
+            }
+        }
+
         let mut names: std::collections::HashSet<String> = std::collections::HashSet::new();
         for v in lines.iter() {
             if let Some(n) = v.get("name").and_then(Value::as_str) {
@@ -1278,16 +1331,35 @@ pub async fn price_sources_matrix(
             }
         }
         for name in names.into_iter() {
-            let dense = lines.iter().find_map(|v| {
-                if v.get("name").and_then(Value::as_str) == Some(&name[..]) {
-                    v.get("chaos")
-                        .and_then(Value::as_f64)
-                        .or_else(|| v.get("chaosValue").and_then(Value::as_f64))
-                        .map(|n| n as f32)
-                } else {
-                    None
-                }
-            });
+            let (dense, dense_graph) = lines
+                .iter()
+                .find_map(|v| {
+                    if v.get("name").and_then(Value::as_str) == Some(&name[..]) {
+                        let price = v
+                            .get("chaos")
+                            .and_then(Value::as_f64)
+                            .or_else(|| v.get("chaosValue").and_then(Value::as_f64))
+                            .map(|n| n as f32);
+                        let graph = v
+                            .get("graph")
+                            .and_then(Value::as_array)
+                            .map(|arr| arr.iter().filter_map(|v| v.as_f64()).collect::<Vec<f64>>());
+                        Some((price, graph))
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or((None, None));
+
+            // Debug logging for Mirror of Kalandra
+            if name.contains("Mirror") {
+                info!(
+                    name = %name,
+                    dense = ?dense,
+                    "Currency item with 'Mirror' in name"
+                );
+            }
+
             let cov = currency_currency_res.as_ref().and_then(|cur| {
                 for v in cur.iter() {
                     let nn = v
@@ -1320,6 +1392,7 @@ pub async fn price_sources_matrix(
                 variant: None,
                 tier: None,
                 dense,
+                dense_graph,
                 currency_overview: cov,
                 item_overview: None,
                 poewatch: pw,
@@ -1415,6 +1488,7 @@ pub async fn price_sources_matrix(
                 variant: None,
                 tier: None,
                 dense,
+                dense_graph: None,
                 currency_overview: cov,
                 item_overview: iov,
                 poewatch: pw,
@@ -1515,6 +1589,7 @@ pub async fn price_sources_matrix(
                 variant: None,
                 tier: None,
                 dense,
+                dense_graph: None,
                 currency_overview: None,
                 item_overview: iov,
                 poewatch: pw,
@@ -1611,6 +1686,7 @@ pub async fn price_sources_matrix(
                 variant,
                 tier: None,
                 dense,
+                dense_graph: None,
                 currency_overview: None,
                 item_overview: iov,
                 poewatch: pw,
@@ -1673,6 +1749,7 @@ pub async fn price_sources_matrix(
                 variant: None,
                 tier: Some(tier),
                 dense: None,
+                dense_graph: None,
                 currency_overview: None,
                 item_overview: iov,
                 poewatch: pw,

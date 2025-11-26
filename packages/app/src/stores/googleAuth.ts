@@ -80,21 +80,21 @@ export const useExpirationDate = (log = false) => {
 const { expirationDate, loggedIn, setExpiration, timeLeft, log } = useExpirationDate();
 
 export const useGoogleAuthStore = defineStore('google-auth', {
-    state: (): {
-        name: Ref<string>;
-        picture: Ref<string>;
-        expiration: Ref<Date | null>;
-        loggingIn: boolean;
-        auth_url: string | null;
-        spreadsheetId: Ref<string>;
-    } => ({
-        name: useLocalStorage(GOOGLE_NAME_KEY, ''),
-        picture: useLocalStorage(GOOGLE_AVATAR_KEY, ''),
-        expiration: expirationDate,
-        loggingIn: false,
-        auth_url: null,
-        spreadsheetId: useLocalStorage('sheets-spreadsheet-id', ''),
-    }),
+	state: (): {
+		name: Ref<string>;
+		picture: Ref<string>;
+		expiration: Ref<Date | null>;
+		loggingIn: boolean;
+		auth_url: string | null;
+		spreadsheetId: Ref<string>;
+	} => ({
+		name: useLocalStorage(GOOGLE_NAME_KEY, ''),
+		picture: useLocalStorage(GOOGLE_AVATAR_KEY, ''),
+		expiration: expirationDate,
+		loggingIn: false,
+		auth_url: null,
+		spreadsheetId: useLocalStorage('sheets-spreadsheet-id', ''),
+	}),
 
 	getters: {
 		timeLeft(): number {
@@ -109,17 +109,9 @@ export const useGoogleAuthStore = defineStore('google-auth', {
 	},
 	actions: {
 		async init(): Promise<void> {
-			try {
-				const has = await command('google_has_token');
-				if (has) {
-					const identity = await command('google_identity');
-					if (identity) {
-						this.name = identity.given_name;
-						this.picture = identity.picture ?? '';
-						setExpiration(EXPIRES_IN_MILLIS);
-					}
-				}
-			} catch {}
+			if (this.loggedIn) {
+				setExpiration(EXPIRES_IN_MILLIS);
+			}
 		},
 		async login(): Promise<void> {
 			if (this.loggingIn) {
@@ -151,15 +143,15 @@ export const useGoogleAuthStore = defineStore('google-auth', {
 				this.auth_url = null;
 				unlisten();
 			}
-        },
+		},
 
-        async logout(): Promise<void> {
-            await command('google_logout');
-            this.expiration = null;
-        },
+		async logout(): Promise<void> {
+			await command('google_logout');
+			this.expiration = null;
+		},
 
-        setSpreadsheetId(id: string) {
-            this.spreadsheetId = id.trim();
-        },
-    },
+		setSpreadsheetId(id: string) {
+			this.spreadsheetId = id.trim();
+		},
+	},
 });
