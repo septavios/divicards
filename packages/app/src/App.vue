@@ -100,6 +100,20 @@ const bulkLoadStash = async () => {
     stashesViewRef.value?.dispatchEvent(new Event('stashes__bulk-load-all'));
 };
 
+import { watch } from 'vue';
+watch(() => authStore.loggedIn, async (loggedIn) => {
+    if (loggedIn && !stashVisible.value) {
+        try {
+            const snapshots = await stashLoader.listSnapshots(league.value, 1);
+            if (snapshots.length > 0) {
+                stashVisible.value = true;
+            }
+        } catch (e) {
+            console.warn('Failed to check snapshots on login', e);
+        }
+    }
+}, { immediate: true });
+
 // removed: legacy clear-all-history handler
 
 const handleToast = (e: CustomEvent) => {

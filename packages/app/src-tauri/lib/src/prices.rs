@@ -1710,11 +1710,15 @@ pub async fn price_sources_matrix(
                 }
                 None
             });
+            let (derived_tier, derived_variant) = get_essence_tier(&name)
+                .map(|(t, v)| (Some(t), Some(v)))
+                .unwrap_or((None, None));
+
             rows.push(PriceSourceRow {
                 category: "Essence".to_string(),
                 name,
-                variant,
-                tier: None,
+                variant: variant.or(derived_variant),
+                tier: derived_tier,
                 dense,
                 dense_graph,
                 currency_overview: None,
@@ -1788,6 +1792,31 @@ pub async fn price_sources_matrix(
     }
 
     Ok(rows)
+}
+
+fn get_essence_tier(name: &str) -> Option<(u8, String)> {
+    if name.starts_with("Deafening") {
+        return Some((1, "Deafening".to_string()));
+    }
+    if name.starts_with("Shrieking") {
+        return Some((2, "Shrieking".to_string()));
+    }
+    if name.starts_with("Screaming") {
+        return Some((3, "Screaming".to_string()));
+    }
+    if name.starts_with("Wailing") {
+        return Some((4, "Wailing".to_string()));
+    }
+    if name.starts_with("Weeping") {
+        return Some((5, "Weeping".to_string()));
+    }
+    if name.starts_with("Muttering") {
+        return Some((6, "Muttering".to_string()));
+    }
+    if name.starts_with("Whispering") {
+        return Some((7, "Whispering".to_string()));
+    }
+    None
 }
 
 #[cfg(test)]

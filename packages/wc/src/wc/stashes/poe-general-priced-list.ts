@@ -4,6 +4,7 @@ import type { TabWithItems, PoeItem } from 'poe-custom-elements/types.js';
 import 'poe-custom-elements/item.js';
 import type { IStashLoader } from '@divicards/shared/IStashLoader.js';
 import '@shoelace-style/shoelace/dist/components/alert/alert.js';
+import { SlConverter } from '../e-league-select';
 import '@shoelace-style/shoelace/dist/components/icon/icon.js';
 import '@shoelace-style/shoelace/dist/components/dialog/dialog.js';
 import '@shoelace-style/shoelace/dist/components/input/input.js';
@@ -541,12 +542,12 @@ export class PoeGeneralPricedListElement extends LitElement {
               <sl-select 
                 hoist 
                 size="small" 
-                .value=${this.category ?? ''} 
-                @sl-change=${(e: any) => { const v = e.target.value; this.category = v ? String(v) : null; }} 
+                .value=${this.category ? SlConverter.toSlValue(this.category) : ''} 
+                @sl-change=${(e: any) => { const v = e.target.value; this.category = v ? SlConverter.fromSlValue<string>(String(v)) : null; }} 
                 placeholder="All" 
                 clearable
               >
-                ${this.categories().map(c => html`<sl-option value=${c}>${c}</sl-option>`)}
+                ${this.categories().map(c => html`<sl-option value=${SlConverter.toSlValue(c)}>${c}</sl-option>`)}
               </sl-select>
             </div>
 
@@ -711,18 +712,18 @@ export class PoeGeneralPricedListElement extends LitElement {
     return html`<thead>
       <tr>
         ${cols.map(c => {
-          const isSorted = this.sortBy === keys[c];
-          const sortIcon = isSorted ? (this.sortDir === 'asc' ? 'arrow-up' : 'arrow-down') : 'arrow-down-up';
-          const ariaSort = isSorted ? (this.sortDir === 'asc' ? 'ascending' : 'descending') : 'none';
-          return html`<th scope="col" aria-sort="${ariaSort}" class="${numeric.has(c) ? 'numeric' : ''}" style="width: ${this.colWidthPx(c)}">
+      const isSorted = this.sortBy === keys[c];
+      const sortIcon = isSorted ? (this.sortDir === 'asc' ? 'arrow-up' : 'arrow-down') : 'arrow-down-up';
+      const ariaSort = isSorted ? (this.sortDir === 'asc' ? 'ascending' : 'descending') : 'none';
+      return html`<th scope="col" aria-sort="${ariaSort}" class="${numeric.has(c) ? 'numeric' : ''}" style="width: ${this.colWidthPx(c)}">
             ${keys[c]
-              ? html`<button class="th ${isSorted ? 'sorted' : ''}" @click=${() => this.onSort(keys[c])}>
+          ? html`<button class="th ${isSorted ? 'sorted' : ''}" @click=${() => this.onSort(keys[c])}>
                   ${c}
                   <sl-icon name="${sortIcon}" class="sort-icon"></sl-icon>
                 </button>`
-              : html`<span class="th">${c}</span>`}
+          : html`<span class="th">${c}</span>`}
           </th>`;
-        })}
+    })}
       </tr>
     </thead>`;
   }
@@ -830,6 +831,7 @@ export class PoeGeneralPricedListElement extends LitElement {
       --table-row-bg: var(--sl-color-neutral-50);
       --table-row-hover-bg: var(--sl-color-neutral-100);
       --table-text-color: var(--sl-color-neutral-900);
+      --header-text-color: #111111;
       --table-border-color: var(--sl-color-neutral-200);
       background: var(--table-bg);
       color: var(--table-text-color);
@@ -842,7 +844,7 @@ export class PoeGeneralPricedListElement extends LitElement {
       --table-row-hover-bg: #21262d; 
       --table-text-color: #c9d1d9;
       --table-border-color: #30363d;
-      --header-text-color: #f0f6fc;
+      --header-text-color: #ffffff;
       background: var(--table-bg);
       color: var(--table-text-color);
     }
@@ -866,7 +868,7 @@ export class PoeGeneralPricedListElement extends LitElement {
     .table-scroll { width: 100%; height: 100%; overflow: auto; }
     .poe-table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
     thead { background: var(--table-header-bg); position: sticky; top: 0; z-index: 2; }
-    thead th { position: sticky; top: 0; background: var(--table-header-bg); border-bottom: 1px solid var(--table-border-color); padding: 8px; color: var(--header-text-color, var(--sl-color-neutral-200)); font-weight: 600; text-align: left; }
+    thead th { position: sticky; top: 0; background: var(--table-header-bg); border-bottom: 1px solid var(--table-border-color); padding: 8px; color: var(--header-text-color); font-weight: 600; text-align: left; }
     thead th.numeric { text-align: right; }
     thead th .th { background: transparent; border: none; color: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; }
     thead th .th:hover { color: var(--sl-color-primary-600); }

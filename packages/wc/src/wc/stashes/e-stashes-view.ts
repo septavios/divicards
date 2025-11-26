@@ -590,10 +590,10 @@ export class StashesViewElement extends LitElement {
 							<sl-option value="30m">Last 30m</sl-option>
 							<sl-option value="1h">Last 1h</sl-option>
 						</sl-select>
-						<sl-select size="small" .value=${this.aggFilterCategory} @sl-change=${(e: any) => { this.aggFilterCategory = e.target.value; this.#applyCategoryFilter(this.aggFilterCategory); }} style="width: 180px;">
-							<sl-option value="All">All types</sl-option>
-							${this.aggStats.categories.map(c => html`<sl-option value="${c.name}">${c.name}</sl-option>`)}
-						</sl-select>
+                        <sl-select size="small" .value=${SlConverter.toSlValue(this.aggFilterCategory)} @sl-change=${(e: any) => { this.aggFilterCategory = SlConverter.fromSlValue<string>(e.target.value); this.#applyCategoryFilter(this.aggFilterCategory); }} style="width: 180px;">
+                            <sl-option value="${SlConverter.toSlValue('All')}">All types</sl-option>
+                            ${this.aggStats.categories.map(c => html`<sl-option value="${SlConverter.toSlValue(c.name)}">${c.name}</sl-option>`)}
+                        </sl-select>
 						<sl-input size="small" type="number" placeholder="Min value" .value=${this.aggMinPrice != null ? String(this.aggMinPrice) : ''} @sl-change=${(e: any) => { const v = Number(e.target.value); this.aggMinPrice = Number.isFinite(v) ? v : null; this.#scheduleAggRecalc(); }} style="width: 120px;"></sl-input>
 						<sl-input size="small" type="number" placeholder="Max value" .value=${this.aggMaxPrice != null ? String(this.aggMaxPrice) : ''} @sl-change=${(e: any) => { const v = Number(e.target.value); this.aggMaxPrice = Number.isFinite(v) ? v : null; this.#scheduleAggRecalc(); }} style="width: 120px;"></sl-input>
 					</div>
@@ -2067,10 +2067,10 @@ export class StashesViewElement extends LitElement {
 		const filtered = filteredBase.filter(r => { const d = r.dense ?? 0; const best = Math.max(r.currency_overview ?? 0, r.item_overview ?? 0, r.poewatch ?? 0); return Math.abs(best - d) >= this.priceSourcesMinDiff; });
 		const colCount = 5 + (this.priceSourcesShowCurrency ? 1 : 0) + (this.priceSourcesShowItem ? 1 : 0) + (this.priceSourcesShowPoewatch ? 1 : 0);
 		return html`
-			<div class="price-sources-controls">
-				<sl-select size="small" .value=${this.priceSourcesCategory} hoist style="width: 180px;" @sl-change=${(e: any) => { this.priceSourcesCategory = e.target.value; this.requestUpdate(); }} aria-label="Category filter">
-					${categories.map(c => html`<sl-option value="${c}">${c}</sl-option>`)}
-				</sl-select>
+            <div class="price-sources-controls">
+                <sl-select size="small" .value=${SlConverter.toSlValue(this.priceSourcesCategory)} hoist style="width: 180px;" @sl-change=${(e: any) => { this.priceSourcesCategory = SlConverter.fromSlValue<string>(e.target.value); this.requestUpdate(); }} aria-label="Category filter">
+                    ${categories.map(c => html`<sl-option value="${SlConverter.toSlValue(c)}">${c}</sl-option>`)}
+                </sl-select>
 				<sl-input size="small" placeholder="Search name..." .value=${this.priceSourcesSearch} @sl-input=${(e: any) => this.priceSourcesSearch = e.target.value} style="max-width: 240px;" aria-label="Search by name"></sl-input>
 				<sl-input size="small" type="number" min="0" step="1" .value=${String(this.priceSourcesMinDiff)} @sl-change=${(e: any) => this.priceSourcesMinDiff = Number(e.target.value)} style="width: 140px;" aria-label="Min chaos diff"></sl-input>
 				<sl-switch ?checked=${this.priceSourcesShowCurrency} @sl-change=${(e: any) => this.priceSourcesShowCurrency = e.target.checked}>Currency</sl-switch>
@@ -2603,3 +2603,4 @@ declare module 'vue' {
 		'e-stashes-view': DefineComponent<StashesViewProps & VueEventHandlers<Events>>;
 	}
 }
+import { SlConverter } from '../e-league-select';
