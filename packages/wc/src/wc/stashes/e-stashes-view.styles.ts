@@ -195,7 +195,6 @@ export const styles: CSSResult = css`
         flex-direction: column;
         gap: 0.5rem;
 		animation: fade-in 0.4s ease-out;
-        content-visibility: auto;
 	}
 
 	@keyframes fade-in {
@@ -263,6 +262,12 @@ export const styles: CSSResult = css`
         display: flex;
         align-items: center;
         gap: 0.2rem;
+    }
+
+    canvas.sparkline {
+        display: inline-block;
+        width: 100px;
+        height: 28px;
     }
 
     .metric-timestamp {
@@ -605,14 +610,16 @@ export const styles: CSSResult = css`
         padding: 1rem;
         box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
         pointer-events: none;
-        z-index: 100;
+        z-index: 1000;
         font-size: 0.85rem;
         min-width: 220px;
+        max-width: 300px;
         backdrop-filter: blur(12px);
         color: var(--sl-color-neutral-100);
         display: flex;
         flex-direction: column;
         gap: 0.75rem;
+        transition: top 0.1s ease, left 0.1s ease, transform 0.1s ease;
     }
 
     .tooltip-header {

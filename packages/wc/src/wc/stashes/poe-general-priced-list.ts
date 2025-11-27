@@ -4,7 +4,7 @@ import type { TabWithItems, PoeItem } from 'poe-custom-elements/types.js';
 import 'poe-custom-elements/item.js';
 import type { IStashLoader } from '@divicards/shared/IStashLoader.js';
 import '@shoelace-style/shoelace/dist/components/alert/alert.js';
-import { SlConverter } from '../e-league-select';
+import { SlConverter } from '../e-league-select.js';
 import '@shoelace-style/shoelace/dist/components/icon/icon.js';
 import '@shoelace-style/shoelace/dist/components/dialog/dialog.js';
 import '@shoelace-style/shoelace/dist/components/input/input.js';
@@ -72,6 +72,7 @@ export class PoeGeneralPricedListElement extends LitElement {
   @property({ type: Object }) columnWidths: Record<string, string> = { 'Name': 'minmax(280px,2fr)', 'Category': '160px', 'Stash': '1fr', 'Tab': '80px', 'Quantity': '80px', 'Price': '100px', 'Total': '120px' };
   @property({ type: Object }) columnWidthsAgg: Record<string, string> = { 'Name': 'minmax(240px,1fr)', 'Gem Level': '80px', 'Gem Quality': '80px', 'Corrupted': '100px', 'Category': '160px', 'Tab': '60px', 'Quantity': '80px', 'Price': '80px', 'Total': '100px' };
   @property({ type: Number }) selectedRowIndex: number | null = null;
+  @state() private infoOpenFor: string | null = null;
   private categoryIndex: Map<string, string> = new Map();
   private essencePriceByTypeLine: Map<string, number> = new Map();
   private gemPriceIndex: Map<string, number> = new Map();
@@ -715,13 +716,29 @@ export class PoeGeneralPricedListElement extends LitElement {
       const isSorted = this.sortBy === keys[c];
       const sortIcon = isSorted ? (this.sortDir === 'asc' ? 'arrow-up' : 'arrow-down') : 'arrow-down-up';
       const ariaSort = isSorted ? (this.sortDir === 'asc' ? 'ascending' : 'descending') : 'none';
+      const infoId = `colinfo-${c.replace(/\s+/g, '-')}`;
       return html`<th scope="col" aria-sort="${ariaSort}" class="${numeric.has(c) ? 'numeric' : ''}" style="width: ${this.colWidthPx(c)}">
             ${keys[c]
           ? html`<button class="th ${isSorted ? 'sorted' : ''}" @click=${() => this.onSort(keys[c])}>
                   ${c}
                   <sl-icon name="${sortIcon}" class="sort-icon"></sl-icon>
-                </button>`
-          : html`<span class="th">${c}</span>`}
+                  <sl-icon-button id="${infoId}" name="info-circle" label="Column info" class="col-info-btn"
+                    @click=${(e: Event) => { e.stopPropagation(); this.toggleInfo(c); }}
+                    @keydown=${(e: KeyboardEvent) => this.onInfoKeydown(e, c)}
+                  ></sl-icon-button>
+                </button>
+                <sl-popup .active=${this.infoOpenFor === c} anchor="${infoId}" placement="bottom-start">
+                  <div class="col-info-box">${this.infoContent(c)}</div>
+                </sl-popup>`
+          : html`<span class="th">${c}
+                  <sl-icon-button id="${infoId}" name="info-circle" label="Column info" class="col-info-btn"
+                    @click=${(e: Event) => { e.stopPropagation(); this.toggleInfo(c); }}
+                    @keydown=${(e: KeyboardEvent) => this.onInfoKeydown(e, c)}
+                  ></sl-icon-button>
+                  <sl-popup .active=${this.infoOpenFor === c} anchor="${infoId}" placement="bottom-start">
+                    <div class="col-info-box">${this.infoContent(c)}</div>
+                  </sl-popup>
+                </span>`}
           </th>`;
     })}
       </tr>
@@ -742,6 +759,38 @@ export class PoeGeneralPricedListElement extends LitElement {
     if (['Gem Level', 'Gem Quality', 'Quantity', 'Price', 'Total', 'Tab'].includes(col)) return 'numeric';
     if (['Category', 'Corrupted'].includes(col)) return 'center';
     return 'text';
+  }
+
+  private toggleInfo(col: string): void {
+    this.infoOpenFor = this.infoOpenFor === col ? null : col;
+  }
+
+  private onInfoKeydown(e: KeyboardEvent, col: string): void {
+    const k = e.key;
+    if (k === 'Enter' || k === ' ') {
+      e.preventDefault();
+      this.toggleInfo(col);
+    }
+    if (k === 'Escape') {
+      this.infoOpenFor = null;
+    }
+  }
+
+  private infoContent(col: string): TemplateResult {
+    const t = (s: string) => html`<div class="col-info-line">${s}</div>`;
+    switch (col) {
+      case 'Name': return t('Item base name.');
+      case 'Stash': return t('Source stash name.');
+      case 'Tab': return this.aggregate ? t('Tabs containing this item, shown as comma-separated indexes.') : t('Tab index in the selected stash.');
+      case 'Gem Level': return t('Exact level of the gem.');
+      case 'Gem Quality': return t('Exact quality of the gem in percent.');
+      case 'Corrupted': return t('Whether the gem is corrupted.');
+      case 'Category': return t('Item category derived from pricing sources.');
+      case 'Quantity': return t('Total stack count across aggregated tabs.');
+      case 'Price': return t('Estimated chaos value per item based on price sources.');
+      case 'Total': return t('Quantity × Price, rounded to chaos.');
+      default: return t('Column details.');
+    }
   }
 
   private colWidthPx(col: string): string {
@@ -831,7 +880,7 @@ export class PoeGeneralPricedListElement extends LitElement {
       --table-row-bg: var(--sl-color-neutral-50);
       --table-row-hover-bg: var(--sl-color-neutral-100);
       --table-text-color: var(--sl-color-neutral-900);
-      --header-text-color: #111111;
+      --header-text-color: var(--sl-color-primary-600);
       --table-border-color: var(--sl-color-neutral-200);
       background: var(--table-bg);
       color: var(--table-text-color);
@@ -844,7 +893,7 @@ export class PoeGeneralPricedListElement extends LitElement {
       --table-row-hover-bg: #21262d; 
       --table-text-color: #c9d1d9;
       --table-border-color: #30363d;
-      --header-text-color: #ffffff;
+      --header-text-color: var(--sl-color-primary-400);
       background: var(--table-bg);
       color: var(--table-text-color);
     }
@@ -868,13 +917,18 @@ export class PoeGeneralPricedListElement extends LitElement {
     .table-scroll { width: 100%; height: 100%; overflow: auto; }
     .poe-table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
     thead { background: var(--table-header-bg); position: sticky; top: 0; z-index: 2; }
-    thead th { position: sticky; top: 0; background: var(--table-header-bg); border-bottom: 1px solid var(--table-border-color); padding: 8px; color: var(--header-text-color); font-weight: 600; text-align: left; }
+    thead th { position: sticky; top: 0; background: var(--table-header-bg); border-bottom: 1px solid var(--table-border-color); padding: 10px 12px; color: var(--header-text-color); font-weight: 700; text-align: left; }
     thead th.numeric { text-align: right; }
-    thead th .th { background: transparent; border: none; color: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; }
+    thead th .th { background: transparent; border: none; color: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.95rem; padding: 4px 6px; border-radius: 6px; }
     thead th .th:hover { color: var(--sl-color-primary-600); }
     thead th .th:focus-visible { outline: 2px solid var(--sl-color-primary-600); outline-offset: 2px; }
-    thead th .th.sorted { color: var(--sl-color-primary-700); font-weight: 700; }
+    thead th .th.sorted { color: var(--sl-color-primary-700); font-weight: 800; }
+    :host-context(.sl-theme-dark) thead th .th.sorted { color: var(--sl-color-primary-300); }
     thead th .sort-icon { font-size: 0.9rem; opacity: 0.7; }
+    .col-info-btn { --size: 20px; color: var(--sl-color-neutral-600); }
+    :host-context(.sl-theme-dark) .col-info-btn { color: var(--sl-color-neutral-300); }
+    .col-info-box { background: var(--card-bg, var(--table-bg)); border: 1px solid var(--table-border-color); border-radius: 8px; padding: 8px 10px; max-width: 280px; font-size: 0.85rem; color: var(--table-text-color); box-shadow: var(--sl-shadow-large); }
+    .col-info-line { line-height: 1.3; }
     tbody tr { background: var(--table-row-bg); color: var(--table-text-color); border-bottom: 1px solid var(--table-border-color); }
     tbody tr:nth-child(even) { background: var(--table-row-alt-bg); }
     td { padding: 6px 8px; vertical-align: middle; }

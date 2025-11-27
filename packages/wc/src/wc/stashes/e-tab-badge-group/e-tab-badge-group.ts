@@ -249,7 +249,7 @@ export class TabBadgeGroupElement extends LitElement {
                     ${this.#renderPinnedSection()}
                     ${this.#renderGroupedByType()}
                 ` : this.displayMode === 'scroll' ? html`
-                    <lit-virtualizer class="list-virtual" .items=${this._filtered} .renderItem=${(tab: NoItemsTab) => html` 
+                    <lit-virtualizer class="list-virtual" .items=${this._filtered} .renderItem=${(tab: any) => html` 
                         <div
                             class=${classMap({
                                 error: this.errors.some(({ noItemsTab }) => noItemsTab.id === tab.id),

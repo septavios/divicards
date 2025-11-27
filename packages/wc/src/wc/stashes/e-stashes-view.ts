@@ -22,6 +22,8 @@ import '@shoelace-style/shoelace/dist/components/select/select.js';
 import '@shoelace-style/shoelace/dist/components/option/option.js';
 import '@shoelace-style/shoelace/dist/components/badge/badge.js';
 import '@shoelace-style/shoelace/dist/components/switch/switch.js';
+import '@shoelace-style/shoelace/dist/components/details/details.js';
+import '@shoelace-style/shoelace/dist/components/progress-bar/progress-bar.js';
 import { isStashTabError } from '@divicards/shared/error.js';
 import type { ErrorLabel, SelectedStashtabs } from './types.js';
 import { styles } from './e-stashes-view.styles.js';
@@ -100,7 +102,7 @@ export class StashesViewElement extends LitElement {
 	/** Indicator whether cards was just extracted. */
 	@state() cardsJustExtracted = false;
 	@state() showWealth = false;
-	@state() hoveredSnapshot: { x: number; y: number; snapshot: any; index: number; align: 'center' | 'left' | 'right' } | null = null;
+	@state() hoveredSnapshot: { x: number; y: number; snapshot: any; index: number; align: 'center' | 'left' | 'right'; verticalAlign?: 'top' | 'bottom' } | null = null;
 	@state() snapshotsLoading = false;
 	@state() bulkProgress: { started: number; loaded: number; total: number; name: string } | null = null;
 	@state() chartMode: 'chaos' | 'divine' = 'chaos';
@@ -241,10 +243,24 @@ export class StashesViewElement extends LitElement {
 
 		this.#updateAggregatedMemo();
 		if (!this.aggregatedTabMemo) {
-			return html`<e-stash-tab-container
-				status="pending"
-				@e-stash-tab-container__close=${this.#handleTabContainerClose}
-			></e-stash-tab-container>`;
+			if (this.fetchingStashTab) {
+				return html`<e-stash-tab-container
+					status="pending"
+					@e-stash-tab-container__close=${this.#handleTabContainerClose}
+				></e-stash-tab-container>`;
+			}
+			return html`
+				<div class="agg-empty">
+					<sl-alert variant="neutral">
+						<sl-icon slot="icon" name="info-circle"></sl-icon>
+						${this.errors.length ? 'Some tabs failed to load.' : 'No tab data loaded yet.'}
+					</sl-alert>
+					<sl-button size="small" class="btn-load-items" @click=${this.#onLoadItemsClicked}>
+						<sl-icon name="arrow-clockwise" slot="prefix"></sl-icon>
+						Reload selected tabs
+					</sl-button>
+				</div>
+			`;
 		}
 		return html`<e-stash-tab-container
 			.cardsJustExtracted=${this.cardsJustExtracted}
@@ -598,29 +614,36 @@ export class StashesViewElement extends LitElement {
 						<sl-input size="small" type="number" placeholder="Max value" .value=${this.aggMaxPrice != null ? String(this.aggMaxPrice) : ''} @sl-change=${(e: any) => { const v = Number(e.target.value); this.aggMaxPrice = Number.isFinite(v) ? v : null; this.#scheduleAggRecalc(); }} style="width: 120px;"></sl-input>
 					</div>
 				</div>
-				${this.aggLoading ? html`<div class="agg-loading"><sl-spinner></sl-spinner><span>Processing aggregated data...</span></div>` : html`
-				<div class="agg-metrics-grid">
-					<div class="metric-card">
-						<div class="metric-label"><sl-icon name="boxes"></sl-icon> Items</div>
-						<div class="metric-value">${this.aggStats.itemCount.toLocaleString()}</div>
-						<div class="metric-sub">Loaded</div>
-					</div>
-					<div class="metric-card">
-						<div class="metric-label"><sl-icon name="currency-exchange"></sl-icon> Total Value</div>
-						<div class="metric-value">${Math.round(this.aggStats.totalChaos).toLocaleString()}c</div>
-						<div class="metric-sub">Chaos</div>
-					</div>
-					<div class="metric-card">
-						<div class="metric-label"><sl-icon name="calculator"></sl-icon> Average</div>
-						<div class="metric-value">${(this.aggStats.avgChaos || 0).toFixed(1)}c</div>
-						<div class="metric-sub">Per stack</div>
-					</div>
-					<div class="metric-card">
-						<div class="metric-label"><sl-icon name="hdd"></sl-icon> Utilization</div>
-						<div class="metric-value">${Math.round(this.aggStats.utilizationPct)}%</div>
-						<div class="metric-sub">${this.aggStats.capacityUsed}/${this.aggStats.capacityTotal} cells</div>
+			${this.aggLoading ? html`<div class="agg-loading"><sl-spinner></sl-spinner><span>Processing aggregated data...</span></div>` : html`
+			<div class="metrics-grid">
+				<div class="metric-card">
+					<div class="metric-label"><sl-icon name="boxes"></sl-icon> Items</div>
+					<div class="metric-value">${this.aggStats.itemCount.toLocaleString()}</div>
+					<div class="metric-sub">Loaded</div>
+				</div>
+				<div class="metric-card">
+					<div class="metric-label"><sl-icon name="currency-exchange"></sl-icon> Total Value</div>
+					<div class="metric-value">${Math.round(this.aggStats.totalChaos).toLocaleString()}c</div>
+					<div class="metric-sub">
+						<sl-badge pill variant="neutral">Chaos</sl-badge>
+						<canvas class="sparkline" width="100" height="28"></canvas>
 					</div>
 				</div>
+				<div class="metric-card">
+					<div class="metric-label"><sl-icon name="calculator"></sl-icon> Average</div>
+					<div class="metric-value">${(this.aggStats.avgChaos || 0).toFixed(1)}c</div>
+					<div class="metric-sub">Per stack</div>
+				</div>
+				<div class="metric-card">
+					<div class="metric-label"><sl-icon name="hdd"></sl-icon> Utilization</div>
+					<div class="metric-value">${Math.round(this.aggStats.utilizationPct)}%</div>
+					<div class="metric-sub">
+						${this.aggStats.capacityUsed}/${this.aggStats.capacityTotal} cells
+						<sl-progress-bar value=${Math.round(this.aggStats.utilizationPct)} style="width: 100px;"></sl-progress-bar>
+					</div>
+				</div>
+			</div>
+			<sl-details summary="Category Breakdown">
 				<div class="agg-breakdown">
 					<div class="breakdown-header">
 						<sl-icon name="diagram-3"></sl-icon>
@@ -637,13 +660,16 @@ export class StashesViewElement extends LitElement {
 						`)}
 					</div>
 				</div>
+			</sl-details>
+			<sl-details summary="Performance">
 				<div class="agg-monitoring">
 					<sl-badge variant="neutral" pill>Bulk ${this.bulkStartMs && this.bulkEndMs ? Math.round(this.bulkEndMs - this.bulkStartMs) : 0}ms</sl-badge>
 					<sl-badge variant="neutral" pill>Aggregation ${Math.round(this.aggLastAggregationMs)}ms</sl-badge>
 					${(performance as any)?.memory ? html`<sl-badge variant="neutral" pill>JS Heap ${Math.round(((performance as any).memory.usedJSHeapSize || 0) / 1048576)}MB</sl-badge>` : nothing}
 				</div>
-				`}
-			</section>`;
+			</sl-details>
+			`}
+		</section>`;
 	}
 
 	#applyCategoryFilter(cat: string): void {
@@ -864,6 +890,13 @@ export class StashesViewElement extends LitElement {
 		if (map.has('snapshots') || map.has('showWealth') || map.has('chartMode') || map.has('chartRange')) {
 			this.#scheduleChartsRender();
 		}
+		if (map.has('snapshots') || map.has('aggStats')) {
+			const spark = this.renderRoot?.querySelector<HTMLCanvasElement>('canvas.sparkline');
+			if (spark) {
+				const values = this.snapshots.slice(0, 12).map(s => s.total_chaos || 0).reverse();
+				this.#drawSparkline(spark, values);
+			}
+		}
 		// Re-render chart when hover state changes to draw/clear crosshair
 		if (map.has('hoveredSnapshot')) {
 			const line = this.renderRoot?.querySelector<HTMLCanvasElement>('#wealth-line');
@@ -878,6 +911,43 @@ export class StashesViewElement extends LitElement {
 		}
 	}
 
+	#drawSparkline(canvas: HTMLCanvasElement, values: number[]): void {
+		try {
+			const dpr = window.devicePixelRatio || 1;
+			const w = canvas.width || 100;
+			const h = canvas.height || 28;
+			const cssW = w;
+			const cssH = h;
+			canvas.width = Math.floor(cssW * dpr);
+			canvas.height = Math.floor(cssH * dpr);
+			const ctx = canvas.getContext('2d');
+			if (!ctx) return;
+			ctx.scale(dpr, dpr);
+			ctx.clearRect(0, 0, cssW, cssH);
+			if (!values.length) return;
+			const max = Math.max(...values);
+			const min = Math.min(...values);
+			const range = Math.max(1, max - min);
+			const pad = 2;
+			const chartW = cssW - pad * 2;
+			const chartH = cssH - pad * 2;
+			ctx.strokeStyle = getComputedStyle(this).getPropertyValue('--sl-color-primary-500') || '#3b82f6';
+			ctx.lineWidth = 1.5;
+			ctx.beginPath();
+			for (let i = 0; i < values.length; i++) {
+				const x = pad + (i / Math.max(1, values.length - 1)) * chartW;
+				const y = pad + chartH - ((values[i] - min) / range) * chartH;
+				if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+			}
+			ctx.stroke();
+			ctx.fillStyle = 'rgba(59, 130, 246, 0.15)';
+			ctx.lineTo(pad + chartW, pad + chartH);
+			ctx.lineTo(pad, pad + chartH);
+			ctx.closePath();
+			ctx.fill();
+		} catch { }
+	}
+
 	#handleUpdHoveredError(e: CustomEvent<string | null>) {
 		this.hoveredErrorTabId = e.detail;
 	}
@@ -885,6 +955,8 @@ export class StashesViewElement extends LitElement {
 		this.errors = e.detail;
 	}
 	#onLoadItemsClicked() {
+		this.aggregatedMemoKey = '';
+		this.aggregatedTabMemo = null;
 		this.#load_selected_tabs(this.league, true);
 	}
 	#onCloseClicked() {
@@ -1014,6 +1086,10 @@ export class StashesViewElement extends LitElement {
 
 	/** For each selected stashtab badge, load stashtab and emit it */
 	async #load_selected_tabs(league: League, force = false): Promise<void> {
+		if (force) {
+			this.aggregatedMemoKey = '';
+			this.aggregatedTabMemo = null;
+		}
 		const tabsToLoad = Array.from(this.selected_tabs.values());
 		const idToBadge = new Map(this.stashtabs_badges.map(b => [b.id, b]));
 		let loadedCount = 0;
@@ -1294,15 +1370,18 @@ export class StashesViewElement extends LitElement {
 	#renderTooltip() {
 		if (!this.hoveredSnapshot) return nothing;
 
-		const { snapshot, index, x, y, align } = this.hoveredSnapshot;
+		const { snapshot, index, x, y, align, verticalAlign = 'top' } = this.hoveredSnapshot;
 		const prev = this.snapshots[index + 1];
 		const diff = prev ? Math.round(snapshot.total_chaos - prev.total_chaos) : 0;
 		const ratio = snapshot.total_divines ? (snapshot.total_chaos / snapshot.total_divines).toFixed(0) : 0;
 
+		const topPos = verticalAlign === 'bottom' ? y + 12 : y - 12;
+		const transformY = verticalAlign === 'bottom' ? '0' : '-100%';
+
 		return html`
 			<div 
 				class="chart-tooltip"
-				style="left: ${x + (align === 'left' ? 12 : align === 'right' ? -12 : 0)}px; top: ${y - 12}px; transform: ${align === 'left' ? 'translate(0, -100%)' : align === 'right' ? 'translate(-100%, -100%)' : 'translate(-50%, -100%)'};"
+				style="left: ${x + (align === 'left' ? 12 : align === 'right' ? -12 : 0)}px; top: ${topPos}px; transform: translate(${align === 'left' ? '0' : align === 'right' ? '-100%' : '-50%'}, ${transformY});"
 			>
 				<div class="tooltip-header">
 					<span class="tooltip-date">${new Date(snapshot.timestamp * 1000).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
@@ -2437,12 +2516,17 @@ export class StashesViewElement extends LitElement {
 			align = 'right';
 		}
 
+		// Determine vertical alignment to prevent top cutoff
+		// If y is less than approx tooltip height (220px), show below
+		const verticalAlign: 'top' | 'bottom' = y < 220 ? 'bottom' : 'top';
+
 		this.hoveredSnapshot = {
 			snapshot,
 			x: mouseX,
 			y,
 			index,
 			align,
+			verticalAlign,
 		};
 
 	}
@@ -2603,4 +2687,4 @@ declare module 'vue' {
 		'e-stashes-view': DefineComponent<StashesViewProps & VueEventHandlers<Events>>;
 	}
 }
-import { SlConverter } from '../e-league-select';
+import { SlConverter } from '../e-league-select.js';
