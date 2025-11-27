@@ -2679,12 +2679,22 @@ export class StashesViewElement extends LitElement {
 
 		// Iterate over all cached tabs
 		// We need to access the private cache map or iterate known IDs
-		// Since CacheStore doesn't expose keys, we can use stashtabs_badges to get IDs
-		// But we only want loaded tabs. 
-		// Let's use the downloadedStashTabs if available, or try to access loaded tabs from cache
+		// Helper to recursively get all tab IDs
+		const getAllTabIds = (tabs: NoItemsTab[]): NoItemsTab[] => {
+			let all: NoItemsTab[] = [];
+			for (const t of tabs) {
+				if ((t as any).children && Array.isArray((t as any).children)) {
+					all = all.concat(getAllTabIds((t as any).children));
+				} else {
+					all.push(t);
+				}
+			}
+			return all;
+		};
 
-		// Better approach: Iterate stashtabs_badges and check cache
-		for (const badge of this.stashtabs_badges) {
+		const allTabs = getAllTabIds(this.stashtabs_badges);
+
+		for (const badge of allTabs) {
 			const cached = this.#cache.get(badge.id);
 			if (cached && cached.items && cached.items.length > 0) {
 				let totalChaos = 0;

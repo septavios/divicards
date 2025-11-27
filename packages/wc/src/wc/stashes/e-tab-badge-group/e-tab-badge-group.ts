@@ -181,7 +181,6 @@ export class TabBadgeGroupElement extends LitElement {
                                         size="small" 
                                         value="${this.perPage}" 
                                         @sl-change=${(e: any) => this.#handle_per_page_change(new PerPageChangeEvent(Number(e.target.value)))}
-                                        hoist
                                         style="width: 80px;"
                                         aria-label="Items per page"
                                     >
@@ -206,7 +205,7 @@ export class TabBadgeGroupElement extends LitElement {
                                     </sl-tooltip>
                                 ` : nothing}
 
-                                <sl-select size="small" value=${this.density} hoist @sl-change=${(e: any) => { this.density = e.target.value; }} style="width: 100px;" aria-label="Display density">
+                                <sl-select size="small" value=${this.density} @sl-change=${(e: any) => { this.density = e.target.value; }} style="width: 100px;" aria-label="Display density">
                                     <sl-option value="ultra">Ultra</sl-option>
                                     <sl-option value="dense">Dense</sl-option>
                                     <sl-option value="compact">Compact</sl-option>
@@ -214,22 +213,22 @@ export class TabBadgeGroupElement extends LitElement {
                                     <sl-option value="comfortable">Comfortable</sl-option>
                                 </sl-select>
 
-                                <sl-select size="small" value=${this.displayMode} hoist @sl-change=${(e: any) => { this.displayMode = e.target.value; }} style="width: 110px;" aria-label="Display mode">
+                                <sl-select size="small" value=${this.displayMode} @sl-change=${(e: any) => { this.displayMode = e.target.value; }} style="width: 110px;" aria-label="Display mode">
                                     <sl-option value="paged">Paged</sl-option>
                                     <sl-option value="scroll">Scroll</sl-option>
                                 </sl-select>
 
-                                <sl-select size="small" value=${this.typeFilter} hoist @sl-change=${(e: any) => { this.typeFilter = e.target.value; }} style="width: 140px;" aria-label="Filter by type">
+                                <sl-select size="small" value=${this.typeFilter} @sl-change=${(e: any) => { this.typeFilter = e.target.value; }} style="width: 140px;" aria-label="Filter by type">
                                     <sl-option value="All">All types</sl-option>
-                                    ${this.#types().map((t) => html`<sl-option value=${t}>${t}</sl-option>`) }
+                                    ${this.#types().map((t) => html`<sl-option value=${t}>${t}</sl-option>`)}
                                 </sl-select>
 
-                                <sl-select size="small" value=${this.colorCoding} hoist @sl-change=${(e: any) => { this.colorCoding = e.target.value; }} style="width: 150px;" aria-label="Color coding">
+                                <sl-select size="small" value=${this.colorCoding} @sl-change=${(e: any) => { this.colorCoding = e.target.value; }} style="width: 150px;" aria-label="Color coding">
                                     <sl-option value="metadata">Color: Metadata</sl-option>
                                     <sl-option value="type">Color: Type</sl-option>
                                 </sl-select>
 
-                                <sl-select size="small" value=${this.groupBy} hoist @sl-change=${(e: any) => { this.groupBy = e.target.value; }} style="width: 140px;" aria-label="Group by">
+                                <sl-select size="small" value=${this.groupBy} @sl-change=${(e: any) => { this.groupBy = e.target.value; }} style="width: 140px;" aria-label="Group by">
                                     <sl-option value="none">No grouping</sl-option>
                                     <sl-option value="type">Group: Type</sl-option>
                                 </sl-select>
@@ -252,10 +251,10 @@ export class TabBadgeGroupElement extends LitElement {
                     <lit-virtualizer class="list-virtual" .items=${this._filtered} .renderItem=${(tab: any) => html` 
                         <div
                             class=${classMap({
-                                error: this.errors.some(({ noItemsTab }) => noItemsTab.id === tab.id),
-                                'hovered-error': this.hoveredErrorTabId === tab.id,
-                                selected: this.selected_tabs.has(tab.id),
-                            })}
+                error: this.errors.some(({ noItemsTab }) => noItemsTab.id === tab.id),
+                'hovered-error': this.hoveredErrorTabId === tab.id,
+                selected: this.selected_tabs.has(tab.id),
+            })}
                             role="listitem"
                         >
                             <e-tab-badge
@@ -274,10 +273,10 @@ export class TabBadgeGroupElement extends LitElement {
                         ${repeat(this._paginated, (tab) => tab.id, (tab) => html`
                             <div
                                 class=${classMap({
-                                    error: this.errors.some(({ noItemsTab }) => noItemsTab.id === tab.id),
-                                    'hovered-error': this.hoveredErrorTabId === tab.id,
-                                    selected: this.selected_tabs.has(tab.id),
-                                })}
+                error: this.errors.some(({ noItemsTab }) => noItemsTab.id === tab.id),
+                'hovered-error': this.hoveredErrorTabId === tab.id,
+                selected: this.selected_tabs.has(tab.id),
+            })}
                                 role="listitem"
                             >
                                 <e-tab-badge
@@ -298,9 +297,9 @@ export class TabBadgeGroupElement extends LitElement {
                         <div class="section-title">Recently used</div>
                         <div class="recent-list">
                             ${this.recentTabs
-                                .map((id) => this.stashes.find((t) => t.id === id))
-                                .filter((t): t is NoItemsTab => !!t)
-                                .map((tab) => html`
+                    .map((id) => this.stashes.find((t) => t.id === id))
+                    .filter((t): t is NoItemsTab => !!t)
+                    .map((tab) => html`
                                     <e-tab-badge
                                         .tab=${tab}
                                         .disabled=${this.badgesDisabled}
@@ -308,7 +307,7 @@ export class TabBadgeGroupElement extends LitElement {
                                         .color=${this.#colorForTab(tab)}
                                     ></e-tab-badge>
                                 `)
-                            }
+                }
                         </div>
                     </section>
                 ` : nothing}
@@ -440,12 +439,12 @@ export class TabBadgeGroupElement extends LitElement {
         try {
             const raw = localStorage.getItem(this.#pinnedKey());
             if (raw) this.pinnedTabs = new Set<string>(JSON.parse(raw));
-        } catch {}
+        } catch { }
     }
     #savePinned() {
         try {
             localStorage.setItem(this.#pinnedKey(), JSON.stringify(Array.from(this.pinnedTabs)));
-        } catch {}
+        } catch { }
     }
     #pinnedKey() { return `divicards.pinnedTabs.${this.league}`; }
 
@@ -453,10 +452,10 @@ export class TabBadgeGroupElement extends LitElement {
         try {
             const raw = localStorage.getItem(this.#recentKey());
             if (raw) this.recentTabs = JSON.parse(raw);
-        } catch {}
+        } catch { }
     }
     #saveRecent() {
-        try { localStorage.setItem(this.#recentKey(), JSON.stringify(this.recentTabs)); } catch {}
+        try { localStorage.setItem(this.#recentKey(), JSON.stringify(this.recentTabs)); } catch { }
     }
     #recentKey() { return `divicards.recentTabs.${this.league}`; }
 
