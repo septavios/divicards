@@ -123,6 +123,9 @@ export class StashesViewElement extends LitElement {
 	@state() priceSourcesShowPoewatch: boolean = true;
 	@state() priceSourcesIncludeLowConf: boolean = false;
 	@state() priceSourcesShowDivine: boolean = false;
+	@state() priceSourcesPage: number = 1;
+	@state() priceSourcesPerPage: number = 20;
+	@state() topTabs: Array<{ id: string; name: string; color?: string; value: number; valueDiv: number; type: string }> = [];
 	private lastToastTime = 0;
 	@state() private aggregatedMemoKey: string = '';
 	@state() private aggregatedTabMemo: TabWithItems | null = null;
@@ -235,6 +238,7 @@ export class StashesViewElement extends LitElement {
 		if (this.multiselect && this.selected_tabs.has(id)) {
 			this.#updateAggregatedMemo();
 		}
+		this.#calculateTopTabs();
 		this.requestUpdate();
 	}
 
@@ -297,14 +301,21 @@ export class StashesViewElement extends LitElement {
 		const items: TabWithItems['items'] = [];
 		let hasAnyData = false;
 
+		// Optimize: pre-allocate array if size is known or use push in loop
+		// Since we don't know exact item count, push is fine.
+		// Avoid creating intermediate arrays if possible.
+
 		for (const id of effectiveIds) {
 			const cached = this.#getCachedTab(id);
 			if (cached && cached.items) {
 				hasAnyData = true;
-				cached.items.forEach(it => {
-					(it as any).tabIndex = cached.index;
+				// Direct push is faster than spread for large arrays
+				const len = cached.items.length;
+				for (let i = 0; i < len; i++) {
+					const it = cached.items[i];
+					(it as any).tabIndex = cached.index; // Mutating cached item might be risky if reused elsewhere without this context, but likely safe here as it's transient property
 					items.push(it);
-				});
+				}
 			}
 		}
 
@@ -383,6 +394,9 @@ export class StashesViewElement extends LitElement {
 		if (map.has('opened_tab')) {
 			this.#updateAggregatedMemo();
 		}
+		if (map.has('priceSourcesData') || map.has('downloadedStashTabs')) {
+			this.#calculateTopTabs();
+		}
 	}
 
 	protected async firstUpdated(): Promise<void> {
@@ -391,6 +405,7 @@ export class StashesViewElement extends LitElement {
 			await this.#loadStash();
 		}
 		this.#attachChartObservers();
+		this.#loadPriceSources();
 	}
 
 	protected override render(): TemplateResult {
@@ -517,6 +532,7 @@ export class StashesViewElement extends LitElement {
 				: nothing}
 			${this.#renderPriceVarianceSection()}
 			${this.multiselect && this.selected_tabs.size > 0 ? this.#renderAggregationDashboard() : nothing}
+			${this.#renderTopTabs()}
             ${this.#renderPriceSourcesSection()}
                 <e-tab-badge-group
                  	.stashes=${this.stashtabs_badges}
@@ -954,10 +970,21 @@ export class StashesViewElement extends LitElement {
 	#handleUpdErrors(e: CustomEvent<Array<ErrorLabel>>) {
 		this.errors = e.detail;
 	}
-	#onLoadItemsClicked() {
-		this.aggregatedMemoKey = '';
-		this.aggregatedTabMemo = null;
-		this.#load_selected_tabs(this.league, true);
+	async #onLoadItemsClicked(): Promise<void> {
+		if (this.multiselect && this.selected_tabs.size > 0) {
+			this.aggregatedMemoKey = '';
+			this.aggregatedTabMemo = null;
+			await this.#load_selected_tabs(this.league, true);
+		} else if (this.opened_tab) {
+			const result = await this.#loadSingleTabContent('general-tab', this.opened_tab.id, this.league, (_sid, _lg) => this.stashLoader.tabFromBadge(this.opened_tab!, this.league), true);
+			// Handle potential double promise due to generic inference
+			const stashtab = result instanceof Promise ? await result : result;
+
+			if (stashtab) {
+				this.#setCachedTab(stashtab.id, stashtab);
+				this.dispatchEvent(new StashtabFetchedEvent(stashtab, this.league));
+			}
+		}
 	}
 	#onCloseClicked() {
 		this.dispatchEvent(new CloseEvent());
@@ -999,6 +1026,12 @@ export class StashesViewElement extends LitElement {
 			await this.#load_selected_tabs(this.league);
 			this.downloadAs = prev;
 			await this.#captureSnapshot();
+
+			// Force aggregation view after bulk load
+			this.multiselect = true;
+			this.opened_tab = null;
+			this.#updateAggregatedMemo();
+			this.#scheduleAggRecalc();
 		} finally {
 			this.bulkLoading = false;
 			this.bulkEndMs = performance.now();
@@ -1009,6 +1042,7 @@ export class StashesViewElement extends LitElement {
 	#handle_selected_tabs_change(e: CustomEvent<{ selected_tabs: SelectedStashtabs }>): void {
 		this.selected_tabs = new Map(e.detail.selected_tabs);
 		this.dispatchEvent(new SelectedTabsChangeEvent(this.selected_tabs));
+
 		if (this.selected_tabs.size > 1) {
 			this.multiselect = true;
 			this.opened_tab = null;
@@ -1024,9 +1058,14 @@ export class StashesViewElement extends LitElement {
 			} else {
 				this.opened_tab = tab;
 			}
+			// Clear aggregation when switching to single tab
+			this.aggregatedMemoKey = '';
+			this.aggregatedTabMemo = null;
 		} else if (this.selected_tabs.size === 0) {
 			this.multiselect = false;
 			this.opened_tab = null;
+			this.aggregatedMemoKey = '';
+			this.aggregatedTabMemo = null;
 		}
 	}
 
@@ -2147,7 +2186,7 @@ export class StashesViewElement extends LitElement {
 		const colCount = 5 + (this.priceSourcesShowCurrency ? 1 : 0) + (this.priceSourcesShowItem ? 1 : 0) + (this.priceSourcesShowPoewatch ? 1 : 0);
 		return html`
             <div class="price-sources-controls">
-                <sl-select size="small" .value=${SlConverter.toSlValue(this.priceSourcesCategory)} hoist style="width: 180px;" @sl-change=${(e: any) => { this.priceSourcesCategory = SlConverter.fromSlValue<string>(e.target.value); this.requestUpdate(); }} aria-label="Category filter">
+                <sl-select size="small" .value=${SlConverter.toSlValue(this.priceSourcesCategory)} style="width: 180px;" @sl-change=${(e: any) => { this.priceSourcesCategory = SlConverter.fromSlValue<string>(e.target.value); this.requestUpdate(); }} aria-label="Category filter">
                     ${categories.map(c => html`<sl-option value="${SlConverter.toSlValue(c)}">${c}</sl-option>`)}
                 </sl-select>
 				<sl-input size="small" placeholder="Search name..." .value=${this.priceSourcesSearch} @sl-input=${(e: any) => this.priceSourcesSearch = e.target.value} style="max-width: 240px;" aria-label="Search by name"></sl-input>
@@ -2178,7 +2217,7 @@ export class StashesViewElement extends LitElement {
 					${this.priceSourcesShowPoewatch ? html`<div role="columnheader">Poe.Watch</div>` : nothing}
 					<div role="columnheader">Δ vs Dense</div>
 				</div>
-				${filtered.slice(0, 200).map(row => {
+				${filtered.slice((this.priceSourcesPage - 1) * this.priceSourcesPerPage, this.priceSourcesPage * this.priceSourcesPerPage).map(row => {
 				const d = row.dense ?? 0; const c = row.currency_overview ?? null; const i = row.item_overview ?? null; const p = row.poewatch ?? null; const best = Math.max(c ?? 0, i ?? 0, p ?? 0); const diff = best ? (best - d) : 0;
 
 				// Calculate Divine Price
@@ -2230,6 +2269,26 @@ export class StashesViewElement extends LitElement {
 						<div role="gridcell" style="display:flex;align-items:center;gap:6px;color:${diff > 0 ? 'var(--sl-color-danger-600)' : diff < 0 ? 'var(--sl-color-success-600)' : 'var(--sl-color-neutral-700)'}">${formatPrice(diff)}<sl-badge variant="neutral" pill>${best === (c ?? 0) ? 'Currency' : best === (i ?? 0) ? 'Item' : 'Poe.Watch'}</sl-badge></div>
 					</div>`;
 			})}
+			</div>
+			<div class="price-sources-footer" style="display:flex; justify-content:space-between; align-items:center; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--sl-color-neutral-200);">
+				<div class="pagination-info" style="font-size: 0.9rem; color: var(--sl-color-neutral-600);">
+					Showing ${Math.min((this.priceSourcesPage - 1) * this.priceSourcesPerPage + 1, filtered.length)}-${Math.min(this.priceSourcesPage * this.priceSourcesPerPage, filtered.length)} of ${filtered.length} items
+				</div>
+				<div class="pagination-controls" style="display:flex; gap: 0.5rem; align-items:center;">
+					<sl-select size="small" .value=${String(this.priceSourcesPerPage)} style="width: 100px;" @sl-change=${(e: any) => { this.priceSourcesPerPage = Number(e.target.value); this.priceSourcesPage = 1; }}>
+						<sl-option value="20">20 / page</sl-option>
+						<sl-option value="50">50 / page</sl-option>
+						<sl-option value="100">100 / page</sl-option>
+						<sl-option value="999999">Show All</sl-option>
+					</sl-select>
+					<sl-button size="small" ?disabled=${this.priceSourcesPage === 1} @click=${() => this.priceSourcesPage--}>
+						<sl-icon name="chevron-left"></sl-icon>
+					</sl-button>
+					<span style="font-size: 0.9rem; color: var(--sl-color-neutral-700);">Page ${this.priceSourcesPage} of ${Math.ceil(filtered.length / this.priceSourcesPerPage)}</span>
+					<sl-button size="small" ?disabled=${this.priceSourcesPage >= Math.ceil(filtered.length / this.priceSourcesPerPage)} @click=${() => this.priceSourcesPage++}>
+						<sl-icon name="chevron-right"></sl-icon>
+					</sl-button>
+				</div>
 			</div>
 		`;
 	}
@@ -2604,6 +2663,100 @@ export class StashesViewElement extends LitElement {
 				ctx.fillText(`${Math.round(e.value).toLocaleString()}`, 100 + barW + 8, y + (rowH - 12) / 2);
 			}
 		} catch (err) { }
+	}
+	#calculateTopTabs(): void {
+		if (this.priceSourcesData.length === 0) return;
+
+		// Get Divine Price
+		let divinePrice = 0;
+		const divineRow = this.priceSourcesData.find(r => r.name === 'Divine Orb' && r.category === 'Currency');
+		if (divineRow) {
+			divinePrice = Math.max(divineRow.dense ?? 0, divineRow.currency_overview ?? 0, divineRow.poewatch ?? 0);
+		}
+		if (divinePrice <= 0) return;
+
+		const tabs: Array<{ id: string; name: string; color?: string; value: number; valueDiv: number; type: string }> = [];
+
+		// Iterate over all cached tabs
+		// We need to access the private cache map or iterate known IDs
+		// Since CacheStore doesn't expose keys, we can use stashtabs_badges to get IDs
+		// But we only want loaded tabs. 
+		// Let's use the downloadedStashTabs if available, or try to access loaded tabs from cache
+
+		// Better approach: Iterate stashtabs_badges and check cache
+		for (const badge of this.stashtabs_badges) {
+			const cached = this.#cache.get(badge.id);
+			if (cached && cached.items && cached.items.length > 0) {
+				let totalChaos = 0;
+				for (const item of cached.items) {
+					const price = this.resolveItemPrice(item, (item as any).name || '');
+					const qty = (item as any).stackSize || 1;
+					totalChaos += price * qty;
+				}
+
+				if (totalChaos > 0) {
+					tabs.push({
+						id: badge.id,
+						name: badge.name,
+						color: (badge.metadata as any)?.colour,
+						value: totalChaos,
+						valueDiv: totalChaos / divinePrice,
+						type: (badge as any).type
+					});
+				}
+			}
+		}
+
+		tabs.sort((a, b) => b.value - a.value);
+		this.topTabs = tabs.slice(0, 10);
+	}
+
+	#renderTopTabs(): TemplateResult | typeof nothing {
+		if (this.topTabs.length === 0) return nothing;
+
+		return html`
+			<section class="top-tabs-section">
+				<div class="section-header">
+					<span class="section-title">
+						<sl-icon name="trophy"></sl-icon>
+						Top 10 Tabs by Value
+					</span>
+				</div>
+				<div class="top-tabs-list">
+					${this.topTabs.map((tab, index) => html`
+						<div class="top-tab-item" @click=${() => this.#handleTopTabClick(tab.id)}>
+							<div class="tab-rank">${index + 1}</div>
+							<div class="tab-info">
+								<div class="tab-name-row">
+									<div class="tab-color-indicator" style="background-color: #${tab.color || '777'}"></div>
+									<span class="tab-name">${tab.name}</span>
+									<sl-badge variant="neutral" pill class="tab-type-badge">${tab.type.replace('Stash', '')}</sl-badge>
+								</div>
+								<div class="tab-value-row">
+									<span class="value-div">${tab.valueDiv.toFixed(1)}</span>
+									<span class="currency-icon-div"></span>
+									<span class="value-chaos">(${Math.round(tab.value).toLocaleString()}c)</span>
+								</div>
+							</div>
+							<div class="tab-action">
+								<sl-icon name="chevron-right"></sl-icon>
+							</div>
+						</div>
+					`)}
+				</div>
+			</section>
+		`;
+	}
+
+	#handleTopTabClick(id: string): void {
+		const tab = this.stashtabs_badges.find(t => t.id === id);
+		if (tab) {
+			this.dispatchEvent(new CustomEvent('stashes__tab-click', {
+				detail: { $tab: tab },
+				bubbles: true,
+				composed: true
+			}));
+		}
 	}
 
 	async #loadSingleTabContent<T>(

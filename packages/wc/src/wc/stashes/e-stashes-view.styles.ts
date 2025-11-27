@@ -1148,4 +1148,145 @@ export const styles: CSSResult = css`
         .price-sources-table .table-row:hover { background: var(--price-table-row-hover-bg); }
         .price-sources-table .table-row:focus-visible { outline: 3px solid var(--sl-color-primary-600); }
     }
+
+    /* Top 10 Tabs Section */
+    .top-tabs-section {
+        background: var(--card-bg);
+        border: var(--card-border);
+        border-radius: var(--card-radius);
+        padding: 1rem;
+        box-shadow: var(--glass-shadow);
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .top-tabs-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 0.75rem;
+    }
+
+    .top-tab-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem;
+        background: var(--sl-color-neutral-50);
+        border: 1px solid var(--sl-color-neutral-200);
+        border-radius: 0.5rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        position: relative;
+        overflow: hidden;
+    }
+
+    :host-context(.sl-theme-dark) .top-tab-item {
+        background: var(--sl-color-neutral-900);
+        border-color: var(--sl-color-neutral-700);
+    }
+
+    .top-tab-item:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        border-color: var(--sl-color-primary-400);
+    }
+
+    .tab-rank {
+        font-size: 1.2rem;
+        font-weight: 800;
+        color: var(--sl-color-neutral-300);
+        min-width: 1.5rem;
+        text-align: center;
+    }
+
+    :host-context(.sl-theme-dark) .tab-rank {
+        color: var(--sl-color-neutral-700);
+    }
+
+    .top-tab-item:nth-child(1) .tab-rank { color: #fbbf24; } /* Gold */
+    .top-tab-item:nth-child(2) .tab-rank { color: #94a3b8; } /* Silver */
+    .top-tab-item:nth-child(3) .tab-rank { color: #b45309; } /* Bronze */
+
+    .tab-info {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        min-width: 0;
+    }
+
+    .tab-name-row {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .tab-color-indicator {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        flex-shrink: 0;
+    }
+
+    .tab-name {
+        font-weight: 600;
+        color: var(--sl-color-neutral-700);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-size: 0.9rem;
+    }
+
+    :host-context(.sl-theme-dark) .tab-name {
+        color: var(--sl-color-neutral-200);
+    }
+
+    .tab-type-badge {
+        font-size: 0.65rem;
+        height: 1.2em;
+    }
+
+    .tab-value-row {
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+    }
+
+    .value-div {
+        font-weight: 700;
+        font-size: 1.1rem;
+        color: var(--sl-color-neutral-900);
+        font-variant-numeric: tabular-nums;
+    }
+
+    :host-context(.sl-theme-dark) .value-div {
+        color: var(--sl-color-neutral-100);
+    }
+
+    .currency-icon-div {
+        width: 20px;
+        height: 20px;
+        background-image: url('https://web.poecdn.com/image/Art/2DItems/Currency/CurrencyModValues.png');
+        background-size: contain;
+        background-repeat: no-repeat;
+        display: inline-block;
+    }
+
+    .value-chaos {
+        font-size: 0.8rem;
+        color: var(--sl-color-neutral-500);
+        margin-left: 0.2rem;
+    }
+
+    .tab-action {
+        color: var(--sl-color-neutral-400);
+        opacity: 0;
+        transition: opacity 0.2s ease;
+    }
+
+    .top-tab-item:hover .tab-action {
+        opacity: 1;
+    }
 `;
