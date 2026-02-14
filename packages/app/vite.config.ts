@@ -64,4 +64,15 @@ export default defineConfig({
 			],
 		}),
 	],
+    server: {
+        port: 50151,
+        strictPort: true,
+        proxy: {
+            '/oauth': {
+                target: 'https://www.pathofexile.com',
+                changeOrigin: true,
+                secure: false,
+            },
+        },
+    },
 });

@@ -18,6 +18,8 @@ pub enum Error {
         league: League,
         message: String,
     },
+    #[cfg(feature = "desktop")]
+    TauriError(tauri::Error),
 }
 
 impl Error {
@@ -32,6 +34,8 @@ impl Error {
             Error::GoogleError(_) => "googleError",
             Error::ConfigDirNotExists => "configDirNotExists",
             Error::StashTabError { .. } => "stashTabError",
+            #[cfg(feature = "desktop")]
+            Error::TauriError(_) => "tauriError",
         }
     }
 }
@@ -50,6 +54,8 @@ impl Display for Error {
             Error::GoogleError(err) => err.fmt(f),
             Error::ConfigDirNotExists => f.write_str("Config dir not exists"),
             Error::StashTabError { message, .. } => f.write_str(message),
+            #[cfg(feature = "desktop")]
+            Error::TauriError(err) => err.fmt(f),
         }
     }
 }
@@ -112,5 +118,12 @@ impl From<io::Error> for Error {
 impl From<googlesheets::error::Error> for Error {
     fn from(value: googlesheets::error::Error) -> Self {
         Error::GoogleError(value)
+    }
+}
+
+#[cfg(feature = "desktop")]
+impl From<tauri::Error> for Error {
+    fn from(value: tauri::Error) -> Self {
+        Error::TauriError(value)
     }
 }

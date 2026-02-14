@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, Ref, shallowRef, nextTick } from 'vue';
 import { StashLoader } from './StashLoader';
-import { command } from './command';
+import { command, resolveBaseUrl } from './command';
 import { toast } from './toast';
 import { isTauriError, handleError } from './error';
 import { isTradeLeague, Column, League, Order } from '@divicards/shared/types.js';
@@ -135,15 +135,20 @@ async function quickExportToSheets() {
 }
 
 const openStashWindow = async () => {
-    if (!authStore.loggedIn) {
-        await authStore.login();
-    }
-    stashVisible.value = true;
-    bulkMode.value = false;
-    const tabs = await stashLoader.tabs(league.value);
-    availableTabs.value = tabs.filter(t => t.type === 'DivinationCardStash');
-    if (availableTabs.value.length && !selectedTabId.value) {
-        selectedTabId.value = availableTabs.value[0].id;
+    try {
+        if (!authStore.loggedIn) {
+            await authStore.login();
+        }
+        stashVisible.value = true;
+        bulkMode.value = false;
+        const tabs = await stashLoader.tabs(league.value);
+        availableTabs.value = tabs.filter(t => t.type === 'DivinationCardStash');
+        if (availableTabs.value.length && !selectedTabId.value) {
+            selectedTabId.value = availableTabs.value[0].id;
+        }
+    } catch (err) {
+        handleError(err);
+        stashVisible.value = false;
     }
 };
 
@@ -299,6 +304,96 @@ const handleDropZoneDrop = (event: DragEvent) => {
 	isDragging.value = false;
 	sampleStore.addFromDragAndDrop(event);
 };
+
+// OAuth Callback handling
+import { onMounted } from 'vue';
+
+const clearOAuthState = () => {
+	localStorage.removeItem('oauth_state');
+	localStorage.removeItem('pkce_verifier');
+	sessionStorage.removeItem('last_auth_code');
+};
+
+onMounted(async () => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    const state = params.get('state');
+    const error = params.get('error');
+
+    if (error) {
+        toast('danger', `Authorization failed: ${error}`);
+		clearOAuthState();
+        window.history.replaceState({}, document.title, window.location.pathname);
+        return;
+    }
+
+    if (code && state) {
+        const lastCode = sessionStorage.getItem('last_auth_code');
+        if (lastCode === code) {
+            console.log('Auth code already processed, skipping.');
+			window.history.replaceState({}, document.title, window.location.pathname);
+            return;
+        }
+        sessionStorage.setItem('last_auth_code', code);
+
+        const storedState = localStorage.getItem('oauth_state');
+        const verifier = localStorage.getItem('pkce_verifier');
+
+        if (state !== storedState) {
+            toast('danger', 'Authorization failed: state mismatch');
+			clearOAuthState();
+			window.history.replaceState({}, document.title, window.location.pathname);
+            return;
+        }
+
+        if (!verifier) {
+            toast('danger', 'Authorization failed: missing PKCE verifier');
+			clearOAuthState();
+			window.history.replaceState({}, document.title, window.location.pathname);
+            return;
+        }
+
+        try {
+            const baseUrl = resolveBaseUrl();
+            const redirectUri = `${window.location.origin}/callback`;
+            const response = await fetch(`${baseUrl}/poe/token`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    code: code,
+                    redirect_uri: redirectUri,
+                    code_verifier: verifier,
+                }),
+            });
+
+            if (!response.ok) {
+                const text = await response.text();
+                let errMessage = text;
+                try {
+                    const parsed = JSON.parse(text);
+                    errMessage = parsed.error_description || parsed.error || text;
+                } catch {}
+                throw new Error(errMessage || 'Unknown error');
+            }
+
+            const data = await response.json();
+            localStorage.setItem('access_token', data.access_token);
+            
+			clearOAuthState();
+            window.history.replaceState({}, document.title, '/');
+
+            toast('success', 'Successfully logged in!');
+            authStore.setWebLogin('Logged In');
+
+        } catch (e: any) {
+            console.error('Token Error:', e);
+			clearOAuthState();
+            toast('danger', `Token exchange failed: ${e.message}`);
+        }
+    }
+});
 </script>
 
 <template>
@@ -395,7 +490,7 @@ const handleDropZoneDrop = (event: DragEvent) => {
             </div>
         </e-base-popup>
         <e-stashes-view
-            v-show="authStore.loggedIn && stashVisible"
+            v-if="authStore.loggedIn && stashVisible"
             :league="league"
             :stashLoader="stashLoader"
             ref="stashesViewRef"

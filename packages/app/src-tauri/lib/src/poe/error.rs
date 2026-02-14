@@ -8,7 +8,7 @@ pub enum AuthError {
         error: String,
         error_description: String,
     },
-    Failed,
+    Failed(String),
 }
 
 impl Display for AuthError {
@@ -22,7 +22,7 @@ impl Display for AuthError {
                 f,
                 "Authorization Error: {error}. Description: {error_description}"
             ),
-            AuthError::Failed => write!(f, "Authorization failed. Try again."),
+            AuthError::Failed(msg) => write!(f, "Authorization failed: {}", msg),
         }
     }
 }
@@ -39,7 +39,7 @@ impl Serialize for AuthError {
                 error: _,
                 error_description: _,
             } => err.serialize_field("authError", "otherWithDescription")?,
-            AuthError::Failed => err.serialize_field("authError", "failed")?,
+            AuthError::Failed(_) => err.serialize_field("authError", "failed")?,
         };
 
         err.serialize_field("message", self.to_string().as_str())?;

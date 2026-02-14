@@ -60,105 +60,111 @@ export interface Commands {
 }
 
 const { format } = new Intl.NumberFormat();
+const isDev = !!(import.meta as any).env?.DEV;
+export const resolveBaseUrl = (): string => {
+	const envUrl = (import.meta as any).env?.VITE_API_URL;
+	if (envUrl) return envUrl;
+	if (typeof window !== 'undefined' && window.location?.origin) {
+		try {
+			const url = new URL(window.location.origin);
+			url.port = '3000';
+			url.pathname = '/api';
+			return url.toString().replace(/\/$/, '');
+		} catch {
+			return 'http://localhost:3000/api';
+		}
+	}
+	return 'http://localhost:3000/api';
+};
 
-const debug = false;
-export const command = async <CommandName extends keyof Commands, Fn extends Commands[CommandName]>(
+export const command = async <CommandName extends keyof Commands>(
     name: CommandName,
-    ...args: Parameters<Fn>
-): Promise<ReturnType<Fn>> => {
-    const isTauri =
-        (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__ != null) ||
-        (typeof navigator !== 'undefined' && navigator.userAgent.includes('Tauri')) ||
-        (typeof import.meta !== 'undefined' && (import.meta as any).env && ((import.meta as any).env.TAURI_PLATFORM ?? (import.meta as any).env.TAURI));
+    args?: Parameters<Commands[CommandName]>[0]
+): Promise<ReturnType<Commands[CommandName]>> => {
+    // Check for Tauri environment
+    const isTauri = typeof window !== 'undefined' && 'toDataURL' in window && '__TAURI_INTERNALS__' in window;
+
     if (isTauri) {
-        if (debug) {
-            const t0 = performance.now();
-            const res = (await invoke(name, ...args)) as ReturnType<Fn>;
-            console.log(`${name}: ${format(performance.now() - t0)}ms`);
-            return res;
-        } else return invoke(name, ...args) as Promise<ReturnType<Fn>>;
+        // cast to any to avoid complex type issues with generic switching
+        return invoke(name, args) as Promise<ReturnType<Commands[CommandName]>>;
     }
-    const r = await mockInvoke(name as string, args[0] as Record<string, unknown>);
-    return r as ReturnType<Fn>;
+
+    // Web Implementation
+    const baseUrl = resolveBaseUrl();
+    // console.log(`[Web API] Calling ${name} with args`, args);
+
+    if (name === 'stashes') {
+        const league = args ? (args as any).league : 'Standard';
+        const token = localStorage.getItem('access_token');
+        const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token.trim()}` } : {};
+        
+        return fetch(`${baseUrl}/stashes?league=${league}`, { headers }).then(async r => {
+            if (!r.ok) throw await r.json();
+            return r.json();
+        }) as any;
+    }
+    
+    if (name === 'sample_from_tab') {
+        if (!args) throw new Error('Helpers: sample_from_tab requires args');
+        const query = new URLSearchParams(args as any).toString();
+        const token = localStorage.getItem('access_token');
+        const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token.trim()}` } : {};
+
+        return fetch(`${baseUrl}/sample_from_tab?${query}`, { headers }).then(async r => {
+            if (!r.ok) throw await r.json();
+            return r.json();
+        }) as any;
+    }
+
+    if (name === 'tab_with_items') {
+        if (!args) throw new Error('Helpers: tab_with_items requires args');
+        const query = new URLSearchParams(args as any).toString();
+        const token = localStorage.getItem('access_token');
+        const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token.trim()}` } : {};
+
+        return fetch(`${baseUrl}/tab_with_items?${query}`, { headers })
+            .then(async r => {
+                const text = await r.text();
+                if (!r.ok) {
+                     // Try to parse error as JSON, otherwise throw status text
+                    try {
+                        throw JSON.parse(text);
+                    } catch (e) {
+                        throw new Error(`Server error ${r.status}: ${text}`);
+                    }
+                }
+                return JSON.parse(text);
+            })
+            .catch(err => {
+                if (isDev) {
+                    console.warn(`[Web API] tab_with_items fetch failed, using mock.`, err);
+                    return mockInvoke('tab_with_items', args as any);
+                }
+                throw err;
+            }) as any;
+    }
+
+    if (name === 'divination_card_prices') {
+        const league = (args as any)?.league;
+        const query = league ? `?league=${encodeURIComponent(league)}` : '';
+        return fetch(`${baseUrl}/prices/divination_card${query}`).then(r => r.json()) as any;
+    }
+
+    if (name === 'currency_prices') {
+        const league = (args as any)?.league;
+        const query = league ? `?league=${encodeURIComponent(league)}` : '';
+        return fetch(`${baseUrl}/prices/currency${query}`).then(r => r.json()) as any;
+    }
+
+    console.warn(`[Web API] Command ${name} not implemented, returning mock or throwing.`);
+    // Fallback Mock Logic or Error
+    return mockInvoke(name, args as any) as any;
 };
 
 async function mockInvoke(name: string, arg: Record<string, unknown>): Promise<unknown> {
     switch (name) {
         case 'version':
             return 'dev-web';
-        case 'stashes':
-            return {
-                stashes: [
-                    { id: 'tabA', index: 0, name: 'Tab A', type: 'NormalStash', selected: false },
-                    { id: 'tabB', index: 1, name: 'Tab B', type: 'NormalStash', selected: false },
-                ],
-            };
-        case 'tab_with_items': {
-            const id = (arg?.stashId as string) ?? 'tabA';
-            const idx = id === 'tabA' ? 0 : 1;
-            const league = (arg?.league as string) ?? 'Standard';
-            const items = [
-                {
-                    typeLine: 'Chaos Orb',
-                    baseType: 'Chaos Orb',
-                    stackSize: 12,
-                    w: 1,
-                    h: 1,
-                    x: 0,
-                    y: 0,
-                    identified: true,
-                    league,
-                },
-                {
-                    typeLine: 'Vaal Orb',
-                    baseType: 'Vaal Orb',
-                    stackSize: 5,
-                    w: 1,
-                    h: 1,
-                    x: 1,
-                    y: 0,
-                    identified: true,
-                    league,
-                },
-                {
-                    typeLine: 'Ancient Orb',
-                    baseType: 'Ancient Orb',
-                    stackSize: 2,
-                    w: 1,
-                    h: 1,
-                    x: 2,
-                    y: 0,
-                    identified: true,
-                    league,
-                },
-            ];
-            return { id, index: idx, name: id, type: 'NormalStash', items };
-        }
-        case 'sample_from_tab': {
-            const sample = {
-                cards: [],
-                notCards: [],
-                fixedNames: [],
-            } as const;
-            return sample;
-        }
-        case 'sample_into_csv': {
-            const prefs = (arg?.preferences ?? {}) as { columns?: string[] };
-            const cols = (prefs.columns ?? ['name', 'amount']) as string[];
-            const sample = (arg?.sample ?? {}) as { cards?: Array<Record<string, any>> };
-            const cards = Array.isArray(sample.cards) ? sample.cards : [];
-            const header = cols.join(',');
-            const lines = cards.map(c =>
-                cols
-                    .map(k => {
-                        const v = c[k];
-                        if (v === null || v === undefined) return '';
-                        return typeof v === 'string' ? v.replaceAll(',', ';') : String(v);
-                    })
-                    .join(',')
-            );
-            return [header, ...lines].join('\n');
-        }
         case 'map_prices':
             return [];
         case 'currency_prices':
@@ -201,9 +207,58 @@ async function mockInvoke(name: string, arg: Record<string, unknown>): Promise<u
             return;
         case 'open_url':
             return;
-        case 'poe_auth':
-            return '';
+        case 'poe_auth': {
+            // PKCE Helpers
+            const generateRandomString = (length: number) => {
+                const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+                let text = '';
+                for (let i = 0; i < length; i++) {
+                    text += possible.charAt(Math.floor(Math.random() * possible.length));
+                }
+                return text;
+            };
+
+            const sha256 = async (plain: string) => {
+                const encoder = new TextEncoder();
+                const data = encoder.encode(plain);
+                return window.crypto.subtle.digest('SHA-256', data);
+            };
+
+            const base64UrlEncode = (a: ArrayBuffer) => {
+                // @ts-ignore
+                return btoa(String.fromCharCode.apply(null, new Uint8Array(a)))
+                    .replace(/\+/g, '-')
+                    .replace(/\//g, '_')
+                    .replace(/=+$/, '');
+            };
+
+            const state = generateRandomString(16);
+            const verifier = generateRandomString(64);
+
+            const hashed = await sha256(verifier);
+            const challenge = base64UrlEncode(hashed);
+
+            localStorage.setItem('oauth_state', state);
+            localStorage.setItem('pkce_verifier', verifier);
+
+            const redirectUri = typeof window !== 'undefined'
+                ? `${window.location.origin}/callback`
+                : 'http://localhost:50151/callback';
+            const params = new URLSearchParams({
+                client_id: 'divicards',
+                response_type: 'code',
+                scope: 'account:stashes',
+                state: state,
+                redirect_uri: redirectUri,
+                code_challenge: challenge,
+                code_challenge_method: 'S256',
+            });
+
+            window.location.href = `https://www.pathofexile.com/oauth/authorize?${params.toString()}`;
+            return 'redirecting';
+        }
         case 'poe_logout':
+            localStorage.removeItem('access_token');
             return;
         case 'sample': {
             const sample = {
@@ -220,6 +275,62 @@ async function mockInvoke(name: string, arg: Record<string, unknown>): Promise<u
                 fixedNames: [],
             } as const;
             return sample;
+        }
+        case 'tab_with_items': {
+            return {
+                id: 'mock-tab',
+                name: 'Mock Tab',
+                type: 'NormalStash',
+                index: 0,
+                items: [
+                    {
+                        id: 'item-1',
+                        baseType: 'The Nurse',
+                        typeLine: 'The Nurse',
+                        stackSize: 8,
+                        icon: 'https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvRGl2aW5hdGlvbi9JbnZlbnRvcnlJY29uIiwidyI6MSwiaCI6MSwic2NhbGUiOjF9XQ/0c3d9a7.png',
+                        w: 1,
+                        h: 1,
+                        x: 0,
+                        y: 0,
+                        ilvl: 0,
+                        league: 'Standard',
+                        name: '',
+                        identified: true,
+                    },
+                    {
+                        id: 'item-2',
+                        baseType: 'The Doctor',
+                        typeLine: 'The Doctor',
+                        stackSize: 2,
+                        icon: 'https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvRGl2aW5hdGlvbi9UaGVEb2N0b3IiLCJ3IjoxLCJoIjoxLCJzY2FsZSI6MX1d/2b531f6.png',
+                        w: 1,
+                        h: 1,
+                        x: 1,
+                        y: 0,
+                        ilvl: 0,
+                        league: 'Standard',
+                        name: '',
+                        identified: true,
+                    },
+                     {
+                        id: 'item-3',
+                        baseType: 'House of Mirrors',
+                        typeLine: 'House of Mirrors',
+                        stackSize: 1,
+                        icon: 'https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvRGl2aW5hdGlvbi9Ib3VzZU9mTWlycm9ycyIsInciOjEsImgiOjEsInNjYWxlIjoxfV0/34e8d28.png',
+                        w: 1,
+                        h: 1,
+                        x: 2,
+                        y: 0,
+                        ilvl: 0,
+                        league: 'Standard',
+                        name: '',
+                        identified: true,
+                    }
+                ],
+                color: '888888',
+            };
         }
         default:
             throw new Error(`Unsupported command: ${name}`);

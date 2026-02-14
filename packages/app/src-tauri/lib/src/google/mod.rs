@@ -1,7 +1,9 @@
+#[cfg(feature = "desktop")]
 use keyring::Entry;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
+#[cfg(feature = "desktop")]
 pub mod auth;
 pub mod sheets;
 
@@ -9,21 +11,25 @@ const CLIENT_ID: &str = "752206000922-1gpkcoplrjqpfgg8pr4sb4tnrlvauomp.apps.goog
 const AUTH_URL: &str = "https://accounts.google.com/o/oauth2/auth";
 const TOKEN_URL: &str = "https://oauth2.googleapis.com/token";
 
+#[cfg(feature = "desktop")]
 #[derive(Debug)]
 pub struct AccessTokenStorage(Entry);
 
+#[cfg(feature = "desktop")]
 impl AccessTokenStorage {
     pub fn new() -> Self {
         AccessTokenStorage::default()
     }
 }
 
+#[cfg(feature = "desktop")]
 impl Default for AccessTokenStorage {
     fn default() -> Self {
         AccessTokenStorage(Entry::new("divicards", "google_access_token").unwrap())
     }
 }
 
+#[cfg(feature = "desktop")]
 impl Persist for AccessTokenStorage {
     const KEY_NAME: &'static str = "google_access_token";
     fn get(&self) -> Result<String, keyring::Error> {
@@ -39,6 +45,7 @@ impl Persist for AccessTokenStorage {
     }
 }
 
+#[cfg(feature = "desktop")]
 pub trait Persist {
     const KEY_NAME: &'static str;
     fn get(&self) -> Result<String, keyring::Error>;

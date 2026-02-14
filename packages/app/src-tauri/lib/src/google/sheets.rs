@@ -1,15 +1,21 @@
-use crate::{
-    error::Error,
-    google::{AccessTokenState, AccessTokenStorage, Persist},
-};
+use crate::error::Error;
+#[cfg(feature = "desktop")]
+use crate::google::AccessTokenState;
+#[cfg(feature = "desktop")]
+use crate::google::{AccessTokenStorage, Persist};
+use crate::poe::error::AuthError;
 use chrono::Utc;
-use divi::{sample::Sample, League};
+use divi::sample::Sample;
+#[cfg(feature = "desktop")]
+use divi::League;
 use googlesheets::sheet::{Credential, Dimension, ReadBatchResponse, SheetUrl, ValueRange};
-use serde_json::json;
-use tracing::debug;
-use tauri::State;
 use reqwest::Client;
+use serde_json::json;
+#[cfg(feature = "desktop")]
+use tauri::State;
+use tracing::debug;
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 #[tracing::instrument(skip(sample))]
 pub async fn new_sheet_with_sample(
@@ -22,13 +28,13 @@ pub async fn new_sheet_with_sample(
 ) -> Result<SheetUrl, Error> {
     let token = match token_state.0.lock().await.clone() {
         Some(t) => t,
-        None => AccessTokenStorage::new().get().unwrap(),
+        None => AccessTokenStorage::new()
+            .get()
+            .map_err(|_| Error::AuthError(AuthError::Failed("Missing access token".to_string())))?,
     };
     let sheet_gid: String = match googlesheets::add_sheet(spreadsheet_id, title, &token).await {
         Ok(add) => add.properties.sheet_id.to_string(),
-        Err(_) => get_sheet_gid_by_title(spreadsheet_id, title, &token)
-            .await?
-            ,
+        Err(_) => get_sheet_gid_by_title(spreadsheet_id, title, &token).await?,
     };
 
     let sample_values = ValueRange {
@@ -52,9 +58,8 @@ pub async fn new_sheet_with_sample(
 
     debug!("{batch_response}");
 
-    let url = format!(
-        "https://docs.google.com/spreadsheets/d/{spreadsheet_id}/edit#gid={sheet_gid}"
-    );
+    let url =
+        format!("https://docs.google.com/spreadsheets/d/{spreadsheet_id}/edit#gid={sheet_gid}");
     let sheet_url: SheetUrl = serde_json::from_value(json!(url))?;
     Ok(sheet_url)
 }
@@ -108,6 +113,7 @@ async fn get_sheet_gid_by_title(
     Ok(id)
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 #[tracing::instrument]
 pub async fn read_batch(
@@ -117,18 +123,17 @@ pub async fn read_batch(
 ) -> Result<ReadBatchResponse, Error> {
     let token = match token_state.0.lock().await.clone() {
         Some(t) => t,
-        None => AccessTokenStorage::new().get().unwrap(),
+        None => AccessTokenStorage::new()
+            .get()
+            .map_err(|_| Error::AuthError(AuthError::Failed("Missing access token".to_string())))?,
     };
-    let value = googlesheets::read_batch(
-        spreadsheet_id,
-        &ranges,
-        Credential::AccessToken(token),
-    )
-    .await?;
+    let value =
+        googlesheets::read_batch(spreadsheet_id, &ranges, Credential::AccessToken(token)).await?;
 
     Ok(value)
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 #[tracing::instrument]
 pub async fn read_sheet(
@@ -138,14 +143,12 @@ pub async fn read_sheet(
 ) -> Result<ValueRange, Error> {
     let token = match token_state.0.lock().await.clone() {
         Some(t) => t,
-        None => AccessTokenStorage::new().get().unwrap(),
+        None => AccessTokenStorage::new()
+            .get()
+            .map_err(|_| Error::AuthError(AuthError::Failed("Missing access token".to_string())))?,
     };
-    let value_range = googlesheets::read(
-        spreadsheet_id,
-        range,
-        Credential::AccessToken(token),
-    )
-    .await?;
+    let value_range =
+        googlesheets::read(spreadsheet_id, range, Credential::AccessToken(token)).await?;
 
     Ok(value_range)
 }

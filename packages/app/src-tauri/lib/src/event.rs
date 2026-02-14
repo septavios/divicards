@@ -1,9 +1,26 @@
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "desktop")]
 use tauri::{Emitter, Window};
 use tracing::instrument;
 
-pub fn toast(variant: ToastVariant, message: String, window: &Window) {
-    Event::Toast { variant, message }.emit(window)
+pub trait Notifier: Send + Sync {
+    fn notify(&self, event: &Event);
+}
+
+#[cfg(feature = "desktop")]
+impl Notifier for Window {
+    fn notify(&self, event: &Event) {
+        self.emit(event.name(), event).unwrap();
+    }
+}
+
+pub struct NoOpNotifier;
+impl Notifier for NoOpNotifier {
+    fn notify(&self, _event: &Event) {}
+}
+
+pub fn toast(variant: ToastVariant, message: String, notifier: &dyn Notifier) {
+    Event::Toast { variant, message }.notify(notifier)
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -21,18 +38,15 @@ pub enum Event {
 }
 
 impl Event {
-    #[instrument(skip(window))]
-    pub fn emit(&self, window: &Window) {
-        window.emit(self.name(), &self).unwrap();
+    #[instrument(skip(notifier))]
+    pub fn notify(&self, notifier: &dyn Notifier) {
+        notifier.notify(self);
     }
 
     pub fn name(&self) -> &str {
         match self {
-            Event::Toast {
-                variant: _,
-                message: _,
-            } => "toast",
-            Event::AuthUrl { url: _ } => "auth-url",
+            Event::Toast { .. } => "toast",
+            Event::AuthUrl { .. } => "auth-url",
         }
     }
 }

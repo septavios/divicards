@@ -48,27 +48,37 @@ pub async fn poe_auth(version: State<'_, AppVersion>, window: Window) -> Result<
         server.await.unwrap();
     });
 
-    open::that(auth_url.to_string()).unwrap();
+    open::that(auth_url.to_string()).map_err(Error::IoError)?;
     dbg!(auth_url.to_string());
     let auth_url_string = auth_url.to_string();
-    window.emit("auth-url", auth_url_string).unwrap();
+    window
+        .emit("auth-url", auth_url_string)
+        .map_err(Error::TauriError)?;
 
     Event::AuthUrl {
         url: auth_url.to_string(),
     }
-    .emit(&window);
+    .notify(&window);
 
     let res = receiver.recv().await;
-    tx.send(()).unwrap();
+    // Receiver might be closed if we are shutting down, not critical to panic here,
+    // but good to not unwrap if possible. However, tx is oneshot sender.
+    // The original code unwrapped tx.send, which sends a signal to shutdown the server.
+    // If receiver is dropped (server handled request), this is fine.
+    tx.send(()).ok();
 
     let Some(response) = res else {
-        return Err(Error::AuthError(AuthError::Failed));
+        return Err(Error::AuthError(AuthError::Failed(
+            "No response from auth server".to_string(),
+        )));
     };
 
     match response {
         AuthResponse::Code { code, csrf } => {
             if csrf.secret() != csrf_token.secret() {
-                return Err(Error::AuthError(AuthError::Failed));
+                return Err(Error::AuthError(AuthError::Failed(
+                    "CSRF mismatch".to_string(),
+                )));
             }
 
             let TokenResponseData {
@@ -81,12 +91,11 @@ pub async fn poe_auth(version: State<'_, AppVersion>, window: Window) -> Result<
                 &redirect_uri,
                 version.inner(),
             )
-            .await
-            .unwrap();
+            .await?;
 
             AccessTokenStorage::new()
                 .set(access_token.secret())
-                .unwrap();
+                .map_err(|e| Error::IoError(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
 
             Ok(username)
         }
@@ -129,7 +138,7 @@ async fn fetch_token(
     pkce_verifier: &str,
     redirect_uri: &str,
     version: &AppVersion,
-) -> Result<TokenResponseData, String> {
+) -> Result<TokenResponseData, Error> {
     let payload = url::form_urlencoded::Serializer::new(String::new())
         .append_pair("client_id", "divicards")
         .append_pair("grant_type", "authorization_code")
@@ -142,7 +151,7 @@ async fn fetch_token(
     dbg!(&payload);
 
     let client = reqwest::Client::new();
-    Ok(client
+    let resp = client
         .post(TOKEN_URL)
         .body(payload)
         .header("Content-Type", "application/x-www-form-urlencoded")
@@ -153,11 +162,17 @@ async fn fetch_token(
             }),
         )
         .send()
-        .await
-        .unwrap()
-        .json::<TokenResponseData>()
-        .await
-        .unwrap())
+        .await?;
+
+    if !resp.status().is_success() {
+        let msg = resp
+            .text()
+            .await
+            .unwrap_or_else(|_| "Unknown token fetch error".to_string());
+        return Err(Error::AuthError(AuthError::Failed(msg)));
+    }
+
+    Ok(resp.json::<TokenResponseData>().await?)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

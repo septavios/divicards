@@ -6,3 +6,28 @@ edition.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+keyring = { version = "2", optional = true }
+oauth2 = { version = "5", optional = true }
+tokio = { version = "1", features = ["full"] }
+tracing.workspace = true
+tracing-subscriber.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono = { version = "0.4.31", features = ["serde"] }
+url = "2.5.0"
+open = "5"
+async-trait = "0.1.77"
+divi = { path = "../../../../crates/divi" }
+ninja = { path = "../../../../crates/ninja" }
+googlesheets = { path = "../../../../crates/googlesheets" }
+axum = { version = "0.7", features = [] } 
+
+[features]
+default = ["desktop"]
+desktop = ["dep:tauri", "dep:keyring", "dep:oauth2"]
+
+[dependencies.tauri]
+version = "2"
+optional = true
+features = ["protocol-asset"]

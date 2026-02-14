@@ -1,3 +1,4 @@
+#[cfg(feature = "desktop")]
 pub mod commands;
 pub mod dev;
 pub mod error;

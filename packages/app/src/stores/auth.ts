@@ -131,6 +131,11 @@ export const useAuthStore = defineStore('auth', {
 			}
 		},
 
+		setWebLogin(name: string = 'Logged In', expiresInMillis: number = EXPIRES_IN_MILLIS): void {
+			this.name = name;
+			setExpiration(expiresInMillis);
+		},
+
 		async logout(): Promise<void> {
 			await command('poe_logout');
 			this.expiration = null;

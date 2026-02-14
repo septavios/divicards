@@ -1,4 +1,6 @@
-use super::{AccessTokenState, AccessTokenStorage, Identity, Persist, AUTH_URL, CLIENT_ID, TOKEN_URL};
+use super::{
+    AccessTokenState, AccessTokenStorage, Identity, Persist, AUTH_URL, CLIENT_ID, TOKEN_URL,
+};
 use crate::{error::Error, event::Event, poe::error::AuthError, version::AppVersion};
 use axum::{extract::Query, response::Html, routing::get, Router};
 use oauth2::{
@@ -87,19 +89,23 @@ pub async fn google_auth(
     Event::AuthUrl {
         url: auth_url.to_string(),
     }
-    .emit(&window);
+    .notify(&window);
 
     let res = receiver.recv().await;
     tx.send(()).unwrap();
 
     let Some(response) = res else {
-        return Err(Error::AuthError(AuthError::Failed));
+        return Err(Error::AuthError(AuthError::Failed(
+            "No response from auth server".to_string(),
+        )));
     };
 
     match response {
         AuthResponse::Code { code, csrf } => {
             if csrf.secret() != csrf_token.secret() {
-                return Err(Error::AuthError(AuthError::Failed));
+                return Err(Error::AuthError(AuthError::Failed(
+                    "CSRF mismatch".to_string(),
+                )));
             }
 
             let token_data = fetch_token(
