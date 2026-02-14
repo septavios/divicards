@@ -58,16 +58,6 @@ export const createSampleCard = async (
 	};
 
 	return props;
-
-	return {
-		uuid: crypto.randomUUID(),
-		filename: prefixFilename(name, league, sample),
-		league,
-		sample,
-		selected: false,
-		minimumCardPrice: 0,
-		csvDataForDrag: csv,
-	};
 };
 
 export const createSampleCardFromSample = async (

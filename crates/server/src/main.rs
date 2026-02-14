@@ -251,9 +251,18 @@ async fn post_poe_token(
         code_verifier: payload.code_verifier,
     };
 
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .user_agent("divicards/0.10.1")
+        .build()
+        .map_err(|err| {
+            (
+                StatusCode::BAD_GATEWAY,
+                Json(serde_json::json!({ "error": err.to_string() })),
+            )
+        })?;
     let response = client
         .post("https://www.pathofexile.com/oauth/token")
+        .header("Accept", "application/json")
         .form(&form)
         .send()
         .await

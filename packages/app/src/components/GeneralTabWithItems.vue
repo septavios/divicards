@@ -12,6 +12,7 @@ const mergeable = computed(() => {
 const tableAsClipboardString = computed(
 	() => 'name\tamount\n' + nameAmountPairs.value.map(({ name, amount = '' }) => `${name}\t${amount}`).join('\n')
 );
+const tabAsJson = computed(() => JSON.stringify(props.tab, null, 2));
 
 watch(
 	() => props.tab.items,
@@ -56,8 +57,8 @@ function onMergeStacksClick() {
 			</table>
 		</details>
 		<details>
-			<summary>Json <sl-copy-button :value="JSON.stringify(tab)"></sl-copy-button></summary>
-			<pre>{{ tab }}</pre>
+			<summary>Json <sl-copy-button :value="tabAsJson"></sl-copy-button></summary>
+			<pre>{{ tabAsJson }}</pre>
 		</details>
 		<sl-icon-button @click="$emit('close')" class="btn-close" name="x-lg"></sl-icon-button>
 	</div>

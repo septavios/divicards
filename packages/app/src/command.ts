@@ -76,16 +76,21 @@ export const resolveBaseUrl = (): string => {
 	}
 	return 'http://localhost:3000/api';
 };
+export const isTauri = (): boolean => {
+	return (
+		(typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__ != null) ||
+		(typeof navigator !== 'undefined' && navigator.userAgent.includes('Tauri')) ||
+		(typeof import.meta !== 'undefined' &&
+			(import.meta as any).env &&
+			((import.meta as any).env.TAURI_PLATFORM ?? (import.meta as any).env.TAURI))
+	);
+};
 
 export const command = async <CommandName extends keyof Commands>(
     name: CommandName,
     args?: Parameters<Commands[CommandName]>[0]
 ): Promise<ReturnType<Commands[CommandName]>> => {
-    // Check for Tauri environment
-    const isTauri = typeof window !== 'undefined' && 'toDataURL' in window && '__TAURI_INTERNALS__' in window;
-
-    if (isTauri) {
-        // cast to any to avoid complex type issues with generic switching
+    if (isTauri()) {
         return invoke(name, args) as Promise<ReturnType<Commands[CommandName]>>;
     }
 
